@@ -11,12 +11,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alumasinde/tuma254-api/internal/identity"
+	"github.com/alumasinde/tuma254-api/internal/platform/auth"
 	"github.com/alumasinde/tuma254-api/internal/platform/config"
 	"github.com/alumasinde/tuma254-api/internal/platform/database"
 	"github.com/alumasinde/tuma254-api/internal/platform/health"
-	"github.com/alumasinde/tuma254-api/internal/identity"
 	"github.com/alumasinde/tuma254-api/internal/platform/logger"
 	"github.com/alumasinde/tuma254-api/internal/platform/redis"
+	"github.com/alumasinde/tuma254-api/internal/routes"
 )
 
 func main() {
@@ -46,12 +48,24 @@ func main() {
 	}
 	defer rdb.Close()
 
+	identityService := identity.New(
+		db,
+		cfg.JWTAccessSecret,
+		cfg.JWTRefreshSecret,
+		cfg.JWTAccessTTL,
+		cfg.JWTRefreshTTL,
+	)
+	identityHandler := identity.NewHandler(identityService)
+	accessValidator := auth.NewValidator(cfg.JWTAccessSecret)
+
 	h := health.New(db, rdb)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", h.Live)
 	mux.HandleFunc("GET /ready", h.Ready)
-	mux.HandleFunc("GET /api/v1", apiInfo)
-	identity.NewHandler(identity.New(db, cfg.JWTAccessSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)).Routes(mux)
+
+	api := routes.New(mux)
+	api.HandleV1Func("", apiInfo)
+	identityHandler.Routes(api, accessValidator)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

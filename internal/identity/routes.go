@@ -1,3 +1,16 @@
 package identity
-import "net/http"
-func (h *Handler) Routes(mux *http.ServeMux){mux.HandleFunc("POST /api/v1/auth/register",h.Register);mux.HandleFunc("POST /api/v1/auth/login",h.Login);mux.HandleFunc("POST /api/v1/auth/refresh",h.Refresh);mux.HandleFunc("POST /api/v1/auth/logout",h.Logout)}
+
+import (
+	"net/http"
+
+	"github.com/alumasinde/tuma254-api/internal/platform/auth"
+	"github.com/alumasinde/tuma254-api/internal/routes"
+)
+
+func (h *Handler) Routes(api *routes.API, validator *auth.Validator) {
+	api.HandleV1Func("/auth/register", h.Register)
+	api.HandleV1Func("/auth/login", h.Login)
+	api.HandleV1Func("/auth/refresh", h.Refresh)
+	api.HandleV1Func("/auth/logout", h.Logout)
+	api.HandleV1("/auth/me", validator.Authenticate(http.HandlerFunc(h.Me)))
+}
