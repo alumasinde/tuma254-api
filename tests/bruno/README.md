@@ -6,9 +6,15 @@ Open this directory as the Bruno collection:
 
 `tests/bruno`
 
-Select the local environment from:
+Bruno discovers the runnable local environment from:
+
+`tests/bruno/environments/Local.bru`
+
+The repository root also keeps:
 
 `environments/Local.bru`
+
+as the shared environment reference. Both files use the same local values.
 
 Run the API first:
 
@@ -16,7 +22,7 @@ Run the API first:
 go run ./cmd/api
 ```
 
-Then test Infrastructure before Identity:
+Then select **Local** in Bruno and test:
 
 1. Health
 2. Ready
