@@ -30,7 +30,7 @@ func (s *Service) Register(ctx context.Context, first,last,email,phone,password 
 }
 func (s *Service) Login(ctx context.Context, identifier,password string)(User,Tokens,error){
  id:=normEmail(identifier); phone:=normPhone(identifier); var u User; var hash string
- err:=s.db.QueryRow(ctx,`SELECT id,first_name,last_name,email,phone,password_hash FROM users WHERE lower(email)=lower($1) OR phone=$2 AND status='active'`,id,phone).Scan(&u.ID,&u.FirstName,&u.LastName,&u.Email,&u.Phone,&hash);if err!=nil{return User{},Tokens{},errors.New("invalid credentials")}
+ err:=s.db.QueryRow(ctx,`SELECT id,first_name,last_name,email,phone,password_hash FROM users WHERE (lower(email)=lower($1) OR phone=$2) AND status='active'`,id,phone).Scan(&u.ID,&u.FirstName,&u.LastName,&u.Email,&u.Phone,&hash);if err!=nil{return User{},Tokens{},errors.New("invalid credentials")}
  if bcrypt.CompareHashAndPassword([]byte(hash),[]byte(password))!=nil{return User{},Tokens{},errors.New("invalid credentials")}
  rows,err:=s.db.Query(ctx,`SELECT r.code FROM roles r JOIN user_roles ur ON ur.role_id=r.id WHERE ur.user_id=$1 ORDER BY r.code`,u.ID);if err!=nil{return User{},Tokens{},err};defer rows.Close();for rows.Next(){var role string;rows.Scan(&role);u.Roles=append(u.Roles,role)}
  t,err:=s.issue(ctx,u);return u,t,err
