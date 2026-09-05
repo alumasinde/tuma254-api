@@ -1,0 +1,4 @@
+vars {
+  BASE_URL: https://api.example.com
+  ACCESS_TOKEN:
+}
