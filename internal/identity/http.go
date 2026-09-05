@@ -34,7 +34,7 @@ type authResponse struct {
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req authReq
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		errJSON(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -64,7 +64,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req authReq
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		errJSON(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -84,7 +84,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req authReq
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		errJSON(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -104,7 +104,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req authReq
-	if err := decodeJSON(r, &req); err != nil {
+	if err := decodeJSON(w, r, &req); err != nil {
 		errJSON(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -121,9 +121,9 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func decodeJSON(r *http.Request, dst any) error {
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	defer r.Body.Close()
-	r.Body = http.MaxBytesReader(nil, r.Body, 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
