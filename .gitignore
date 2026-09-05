@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+bin/
+tmp/
+coverage.out
+bruno/environments/production.bru
+bruno/environments/*.local.bru
+*.secret
+*.key
