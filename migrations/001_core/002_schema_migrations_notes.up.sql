@@ -1,0 +1,1 @@
+-- Core migration group. schema_migrations is created automatically by cmd/migrate.
