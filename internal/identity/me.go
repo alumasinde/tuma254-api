@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var ErrUserNotFound = errors.New("user not found")
@@ -34,5 +33,3 @@ func (s *Service) CurrentUser(ctx context.Context, userID string) (User, error) 
 	}
 	return user, nil
 }
-
-var _ *pgxpool.Pool
