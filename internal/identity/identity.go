@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -208,7 +209,6 @@ func (s *Service) Refresh(ctx context.Context, raw string) (User, Tokens, error)
 	}
 
 	hash := tokenHash(raw)
-
 	var user User
 	var tokens Tokens
 
@@ -220,20 +220,20 @@ func (s *Service) Refresh(ctx context.Context, raw string) (User, Tokens, error)
 			WHERE token_hash = $1
 			  AND revoked_at IS NULL
 			  AND expires_at > now()
-			RETURNING user_id
+			RETURNING user_id::text
 		`, hash).Scan(&storedUserID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrInvalidRefreshToken
 			}
-			return err
+			return fmt.Errorf("revoke refresh token: %w", err)
 		}
 		if storedUserID != userID {
 			return ErrInvalidRefreshToken
 		}
 
 		err = tx.QueryRow(ctx, `
-			SELECT id, first_name, last_name, email, phone, status
+			SELECT id::text, first_name, last_name, email, phone, status
 			FROM users
 			WHERE id = $1 AND status = 'active'
 		`, userID).Scan(
@@ -248,15 +248,18 @@ func (s *Service) Refresh(ctx context.Context, raw string) (User, Tokens, error)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrInvalidRefreshToken
 			}
-			return err
+			return fmt.Errorf("load refresh user: %w", err)
 		}
 
 		if err := s.loadRoles(ctx, tx, &user); err != nil {
-			return err
+			return fmt.Errorf("load refresh roles: %w", err)
 		}
 
 		tokens, err = s.issueWithStore(ctx, tx, user)
-		return err
+		if err != nil {
+			return fmt.Errorf("issue rotated refresh token: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		return User{}, Tokens{}, err
