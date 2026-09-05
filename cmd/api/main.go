@@ -14,6 +14,7 @@ import (
 	"github.com/alumasinde/tuma254-api/internal/platform/config"
 	"github.com/alumasinde/tuma254-api/internal/platform/database"
 	"github.com/alumasinde/tuma254-api/internal/platform/health"
+	"github.com/alumasinde/tuma254-api/internal/identity"
 	"github.com/alumasinde/tuma254-api/internal/platform/logger"
 	"github.com/alumasinde/tuma254-api/internal/platform/redis"
 )
@@ -50,6 +51,7 @@ func main() {
 	mux.HandleFunc("GET /health", h.Live)
 	mux.HandleFunc("GET /ready", h.Ready)
 	mux.HandleFunc("GET /api/v1", apiInfo)
+	identity.NewHandler(identity.New(db, cfg.JWTAccessSecret, cfg.JWTRefreshSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)).Routes(mux)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
