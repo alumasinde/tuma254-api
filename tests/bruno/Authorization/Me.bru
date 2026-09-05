@@ -19,10 +19,10 @@ tests {
     expect(res.status).to.equal(200);
   });
 
-  test("me returns current user", function() {
-    expect(res.body.user).to.have.property("id");
-    expect(res.body.user).to.have.property("first_name");
-    expect(res.body.user).to.have.property("last_name");
+  test("me returns database-backed current user", function() {
+    expect(res.body.user.id).to.be.a("string");
+    expect(res.body.user.first_name).to.be.a("string");
+    expect(res.body.user.last_name).to.be.a("string");
     expect(res.body.user.status).to.equal("active");
     expect(res.body.user.roles).to.be.an("array");
   });
