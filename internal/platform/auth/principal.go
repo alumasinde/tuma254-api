@@ -1,9 +1,6 @@
 package auth
 
-import (
-	"context"
-	"errors"
-)
+import "context"
 
 type Principal struct {
 	UserID string
@@ -42,5 +39,3 @@ func HasAnyRole(principal Principal, roles ...string) bool {
 	}
 	return false
 }
-
-var _ = errors.New
