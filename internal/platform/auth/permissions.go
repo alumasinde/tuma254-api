@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
@@ -13,7 +12,7 @@ type PermissionChecker interface {
 }
 
 type DBPermissionChecker struct {
-	DB interface {
+	db interface {
 		QueryRow(context.Context, string, ...any) pgx.Row
 	}
 }
@@ -21,12 +20,12 @@ type DBPermissionChecker struct {
 func NewDBPermissionChecker(db interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }) *DBPermissionChecker {
-	return &DBPermissionChecker{DB: db}
+	return &DBPermissionChecker{db: db}
 }
 
 func (c *DBPermissionChecker) HasPermission(ctx context.Context, userID, permissionCode string) (bool, error) {
-	var exists bool
-	err := c.DB.QueryRow(ctx, `
+	var allowed bool
+	err := c.db.QueryRow(ctx, `
 		SELECT EXISTS (
 			SELECT 1
 			FROM user_roles ur
@@ -35,8 +34,8 @@ func (c *DBPermissionChecker) HasPermission(ctx context.Context, userID, permiss
 			WHERE ur.user_id = $1
 			  AND p.code = $2
 		)
-	`, userID, permissionCode).Scan(&exists)
-	return exists, err
+	`, userID, permissionCode).Scan(&allowed)
+	return allowed, err
 }
 
 func RequirePermission(checker PermissionChecker, permissionCode string, next http.Handler) http.Handler {
@@ -48,7 +47,7 @@ func RequirePermission(checker PermissionChecker, permissionCode string, next ht
 		}
 		allowed, err := checker.HasPermission(r.Context(), principal.UserID, permissionCode)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, errors.New("authorization check failed"))
+			writeError(w, http.StatusInternalServerError, ErrAuthorizationCheckFailed)
 			return
 		}
 		if !allowed {
