@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -343,6 +344,7 @@ func (s *Service) issueWithStore(ctx context.Context, db interface {
 		"typ":   "access",
 		"iat":   now.Unix(),
 		"exp":   now.Add(s.accessTTL).Unix(),
+		"jti":   newTokenID(),
 	}).SignedString([]byte(s.accessSecret))
 	if err != nil {
 		return Tokens{}, err
@@ -354,6 +356,7 @@ func (s *Service) issueWithStore(ctx context.Context, db interface {
 		"typ": "refresh",
 		"iat": now.Unix(),
 		"exp": refreshExpiresAt.Unix(),
+		"jti": newTokenID(),
 	}).SignedString([]byte(s.refreshSecret))
 	if err != nil {
 		return Tokens{}, err
@@ -397,6 +400,14 @@ func (s *Service) parseRefreshToken(raw string) (jwt.MapClaims, error) {
 	}
 
 	return claims, nil
+}
+
+func newTokenID() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Errorf("generate token id: %w", err))
+	}
+	return hex.EncodeToString(b)
 }
 
 func tokenHash(raw string) string {
