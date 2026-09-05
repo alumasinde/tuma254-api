@@ -27,9 +27,11 @@ body:json {
 }
 
 script:post-response {
-  bru.setVar("USER_ID", res.body.user.id);
-  bru.setVar("ACCESS_TOKEN", res.body.tokens.access_token);
-  bru.setVar("REFRESH_TOKEN", res.body.tokens.refresh_token);
+  if (res.status === 201 && res.body && res.body.user && res.body.tokens) {
+    bru.setVar("USER_ID", res.body.user.id);
+    bru.setVar("ACCESS_TOKEN", res.body.tokens.access_token);
+    bru.setVar("REFRESH_TOKEN", res.body.tokens.refresh_token);
+  }
 }
 
 tests {
