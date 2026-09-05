@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -23,24 +23,29 @@ func (v *Validator) Authenticate(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, ErrMissingToken)
 			return
 		}
+
 		parts := strings.Fields(header)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			writeError(w, http.StatusUnauthorized, ErrInvalidToken)
 			return
 		}
 
+		raw := parts[1]
 		claims := jwt.MapClaims{}
-		token, err := jwt.ParseWithClaims(parts[1], claims, func(t *jwt.Token) (interface{}, error) {
-			return v.accessSecret, nil
-		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
-		if err != nil || token == nil || !token.Valid {
+		token, err := jwt.ParseWithClaims(
+			raw,
+			claims,
+			func(t *jwt.Token) (interface{}, error) {
+				return v.accessSecret, nil
+			},
+			jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+			jwt.WithExpirationRequired(),
+		)
+		if err != nil || token == nil || !token.Valid || claims["typ"] != "access" {
 			writeError(w, http.StatusUnauthorized, ErrInvalidToken)
 			return
 		}
-		if claims["typ"] != "access" {
-			writeError(w, http.StatusUnauthorized, ErrInvalidToken)
-			return
-		}
+
 		userID, ok := claims["sub"].(string)
 		if !ok || strings.TrimSpace(userID) == "" {
 			writeError(w, http.StatusUnauthorized, ErrInvalidToken)
@@ -56,47 +61,12 @@ func (v *Validator) Authenticate(next http.Handler) http.Handler {
 			}
 		}
 
-		ctx := WithPrincipal(r.Context(), principal)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), principal)))
 	})
-}
-
-func RequireRole(role string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		principal, err := PrincipalFromContext(r.Context())
-		if err != nil {
-			writeError(w, http.StatusUnauthorized, ErrMissingToken)
-			return
-		}
-		if !HasRole(principal, role) {
-			writeError(w, http.StatusForbidden, ErrForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func RequireAnyRole(roles ...string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			principal, err := PrincipalFromContext(r.Context())
-			if err != nil {
-				writeError(w, http.StatusUnauthorized, ErrMissingToken)
-				return
-			}
-			if !HasAnyRole(principal, roles...) {
-				writeError(w, http.StatusForbidden, ErrForbidden)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
 }
 
 func writeError(w http.ResponseWriter, status int, err error) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_, _ = w.Write([]byte(`{"error":"` + err.Error() + `"}`))
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 }
-
-var _ = context.Background
