@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PermissionChecker interface {
@@ -12,14 +12,10 @@ type PermissionChecker interface {
 }
 
 type DBPermissionChecker struct {
-	db interface {
-		QueryRow(context.Context, string, ...any) pgx.Row
-	}
+	db *pgxpool.Pool
 }
 
-func NewDBPermissionChecker(db interface {
-	QueryRow(context.Context, string, ...any) pgx.Row
-}) *DBPermissionChecker {
+func NewDBPermissionChecker(db *pgxpool.Pool) *DBPermissionChecker {
 	return &DBPermissionChecker{db: db}
 }
 
