@@ -1,0 +1,16 @@
+meta {
+  name: Role Check
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{BASE_URL}}/api/v1/auth/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{ACCESS_TOKEN}}
+}
+
