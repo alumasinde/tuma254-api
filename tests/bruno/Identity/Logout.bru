@@ -15,3 +15,9 @@ body:json {
     "refresh_token": "{{REFRESH_TOKEN}}"
   }
 }
+
+tests {
+  test("logout returns 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}
