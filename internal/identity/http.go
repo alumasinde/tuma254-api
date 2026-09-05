@@ -1,0 +1,9 @@
+package identity
+import ("encoding/json";"net/http";"strings")
+type Handler struct{ svc *Service };func NewHandler(s *Service)*Handler{return &Handler{svc:s}}
+type authReq struct{FirstName string `json:"first_name"`;LastName string `json:"last_name"`;Email string `json:"email"`;Phone string `json:"phone"`;Password string `json:"password"`;Identifier string `json:"identifier"`;RefreshToken string `json:"refresh_token"`}
+func (h *Handler) Register(w http.ResponseWriter,r *http.Request){var q authReq;if json.NewDecoder(r.Body).Decode(&q)!=nil{errJSON(w,400,"invalid json");return};u,t,e:=h.svc.Register(r.Context(),q.FirstName,q.LastName,q.Email,q.Phone,q.Password);if e!=nil{errJSON(w,400,e.Error());return};json.NewEncoder(w).Encode(map[string]any{"user":u,"tokens":t})}
+func (h *Handler) Login(w http.ResponseWriter,r *http.Request){var q authReq;if json.NewDecoder(r.Body).Decode(&q)!=nil{errJSON(w,400,"invalid json");return};u,t,e:=h.svc.Login(r.Context(),q.Identifier,q.Password);if e!=nil{errJSON(w,401,"invalid credentials");return};json.NewEncoder(w).Encode(map[string]any{"user":u,"tokens":t})}
+func (h *Handler) Refresh(w http.ResponseWriter,r *http.Request){var q authReq;if json.NewDecoder(r.Body).Decode(&q)!=nil{errJSON(w,400,"invalid json");return};t,e:=h.svc.Refresh(r.Context(),q.RefreshToken);if e!=nil{errJSON(w,401,"invalid refresh token");return};json.NewEncoder(w).Encode(t)}
+func (h *Handler) Logout(w http.ResponseWriter,r *http.Request){var q authReq;if json.NewDecoder(r.Body).Decode(&q)!=nil{errJSON(w,400,"invalid json");return};if e:=h.svc.Logout(r.Context(),q.RefreshToken);e!=nil{errJSON(w,500,"logout failed");return};w.WriteHeader(http.StatusNoContent)}
+func errJSON(w http.ResponseWriter,status int,msg string){w.Header().Set("Content-Type","application/json");w.WriteHeader(status);_ = json.NewEncoder(w).Encode(map[string]string{"error":strings.TrimSpace(msg)})}
