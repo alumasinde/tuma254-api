@@ -3,6 +3,7 @@ package identity
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -54,7 +55,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		case isUniqueViolation(err):
 			errJSON(w, http.StatusConflict, ErrUserExists.Error())
 		default:
-			errJSON(w, http.StatusInternalServerError, "registration failed")
+			slog.Error("identity registration failed", "error", err)
+		errJSON(w, http.StatusInternalServerError, "registration failed")
 		}
 		return
 	}
@@ -75,6 +77,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, http.StatusUnauthorized, ErrInvalidCredentials.Error())
 			return
 		}
+		slog.Error("identity login failed", "error", err)
 		errJSON(w, http.StatusInternalServerError, "login failed")
 		return
 	}
@@ -95,6 +98,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, http.StatusUnauthorized, ErrInvalidRefreshToken.Error())
 			return
 		}
+		slog.Error("identity refresh failed", "error", err)
 		errJSON(w, http.StatusInternalServerError, "refresh failed")
 		return
 	}
@@ -114,6 +118,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, http.StatusUnauthorized, ErrInvalidRefreshToken.Error())
 			return
 		}
+		slog.Error("identity logout failed", "error", err)
 		errJSON(w, http.StatusInternalServerError, "logout failed")
 		return
 	}
