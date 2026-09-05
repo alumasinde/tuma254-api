@@ -1,4 +1,9 @@
 {
   "version": "1",
-  "name": "Tuma254 API"
+  "name": "Tuma254 API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
 }
