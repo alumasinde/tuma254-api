@@ -164,7 +164,7 @@ func (s *Service) Login(ctx context.Context, identifier, password string) (User,
 	var passwordHash string
 
 	err := s.db.QueryRow(ctx, `
-		SELECT id, first_name, last_name, email, phone, password_hash, status
+		SELECT id::text, first_name, last_name, email, phone, password_hash, status
 		FROM users
 		WHERE (lower(email) = lower($1) OR phone = $2)
 		  AND status = 'active'
@@ -186,12 +186,12 @@ func (s *Service) Login(ctx context.Context, identifier, password string) (User,
 	}
 
 	if err := s.loadRoles(ctx, s.db, &user); err != nil {
-		return User{}, Tokens{}, err
+		return User{}, Tokens{}, fmt.Errorf("load login roles: %w", err)
 	}
 
 	tokens, err := s.issue(ctx, user)
 	if err != nil {
-		return User{}, Tokens{}, err
+		return User{}, Tokens{}, fmt.Errorf("issue login tokens: %w", err)
 	}
 
 	return user, tokens, nil
