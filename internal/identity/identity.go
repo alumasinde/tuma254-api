@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -329,7 +330,7 @@ func (s *Service) issue(ctx context.Context, user User) (Tokens, error) {
 }
 
 func (s *Service) issueWithStore(ctx context.Context, db interface {
-	Exec(context.Context, string, ...any) (pgx.CommandTag, error)
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }, user User) (Tokens, error) {
 	now := time.Now().UTC()
 
