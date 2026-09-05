@@ -377,12 +377,15 @@ func (s *Service) parseRefreshToken(raw string) (jwt.MapClaims, error) {
 	}
 
 	claims := jwt.MapClaims{}
-	token, err := jwt.ParseWithClaims(raw, claims, func(token *jwt.Token) (interface{}, error) {
-		if token.Method != jwt.SigningMethodHS256 {
-			return nil, ErrInvalidRefreshToken
-		}
-		return []byte(s.refreshSecret), nil
-	})
+	token, err := jwt.ParseWithClaims(
+		raw,
+		claims,
+		func(token *jwt.Token) (interface{}, error) {
+			return []byte(s.refreshSecret), nil
+		},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithExpirationRequired(),
+	)
 	if err != nil || !token.Valid {
 		return nil, ErrInvalidRefreshToken
 	}
