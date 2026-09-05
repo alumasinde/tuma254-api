@@ -30,10 +30,9 @@ func (v *Validator) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		raw := parts[1]
 		claims := jwt.MapClaims{}
 		token, err := jwt.ParseWithClaims(
-			raw,
+			parts[1],
 			claims,
 			func(t *jwt.Token) (interface{}, error) {
 				return v.accessSecret, nil
