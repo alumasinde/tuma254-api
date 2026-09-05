@@ -17,8 +17,10 @@ body:json {
 }
 
 script:post-response {
-  bru.setVar("ACCESS_TOKEN", res.body.tokens.access_token);
-  bru.setVar("REFRESH_TOKEN", res.body.tokens.refresh_token);
+  if (res.status === 200 && res.body && res.body.tokens) {
+    bru.setVar("ACCESS_TOKEN", res.body.tokens.access_token);
+    bru.setVar("REFRESH_TOKEN", res.body.tokens.refresh_token);
+  }
 }
 
 tests {
