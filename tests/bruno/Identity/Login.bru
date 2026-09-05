@@ -12,7 +12,31 @@ post {
 
 body:json {
   {
-    "identifier": "test.user@example.com",
-    "password": "StrongPass123!"
+    "identifier": "{{TEST_EMAIL}}",
+    "password": "{{TEST_PASSWORD}}"
   }
+}
+
+script:post-response {
+  bru.setVar("USER_ID", res.body.user.id);
+  bru.setVar("ACCESS_TOKEN", res.body.tokens.access_token);
+  bru.setVar("REFRESH_TOKEN", res.body.tokens.refresh_token);
+}
+
+tests {
+  test("login returns 200", function() {
+    expect(res.status).to.equal(200);
+  });
+
+  test("returns database-backed user", function() {
+    expect(res.body.user.id).to.equal(bru.getVar("USER_ID"));
+    expect(res.body.user.email).to.equal(bru.getVar("TEST_EMAIL"));
+    expect(res.body.user.status).to.equal("active");
+    expect(res.body.user.roles).to.include("customer");
+  });
+
+  test("returns token pair", function() {
+    expect(res.body.tokens.access_token).to.be.a("string");
+    expect(res.body.tokens.refresh_token).to.be.a("string");
+  });
 }
