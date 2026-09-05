@@ -1,0 +1,17 @@
+meta {
+  name: Authorization Info
+  type: http
+  seq: 0
+}
+
+get {
+  url: {{BASE_URL}}/api/v1
+  body: none
+  auth: none
+}
+
+tests {
+  test("api v1 remains available", function() {
+    expect(res.status).to.equal(200);
+  });
+}
