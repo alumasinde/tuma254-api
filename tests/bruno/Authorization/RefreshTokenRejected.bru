@@ -1,0 +1,25 @@
+meta {
+  name: Refresh Token Rejected
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{BASE_URL}}/api/v1/auth/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{REFRESH_TOKEN}}
+}
+
+tests {
+  test("refresh token cannot access protected route", function() {
+    expect(res.status).to.equal(401);
+  });
+
+  test("returns authentication error", function() {
+    expect(res.body.error).to.equal("invalid access token");
+  });
+}
