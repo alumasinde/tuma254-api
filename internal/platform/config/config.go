@@ -25,11 +25,10 @@ func Load()(Config,error){
  timeout,err:=intValue("VALHALLA_TIMEOUT_SECONDS",5);if err!=nil{return Config{},err}
  accuracy,err:=floatValue("LOCATION_MAX_ACCURACY_METERS",100);if err!=nil{return Config{},err}
  speed,err:=floatValue("LOCATION_MAX_SPEED_MPS",100);if err!=nil{return Config{},err}
- cfg:=Config{AppEnv:value("APP_ENV","development"),HTTPAddr:value("HTTP_ADDR",":8080"),MongoDBURI:strings.TrimSpace(os.Getenv("MONGODB_URI")),MongoDBDatabase:strings.TrimSpace(os.Getenv("MONGODB_DATABASE")),LogLevel:value("LOG_LEVEL","info"),JWTSigningKey:strings.TrimSpace(os.Getenv("JWT_SIGNING_KEY")),AccessTokenTTL:time.Duration(access)*time.Minute,RefreshTokenTTL:time.Duration(refresh)*24*time.Hour,LocationFreshness:time.Duration(fresh)*time.Second,LocationMaxAccuracyMeters:accuracy,LocationMaxSpeedMPS:speed,ValhallaBaseURL:strings.TrimRight(strings.TrimSpace(os.Getenv("VALHALLA_BASE_URL")),"/"),ValhallaTimeout:time.Duration(timeout)*time.Second}
+ cfg:=Config{AppEnv:value("APP_ENV","development"),HTTPAddr:value("HTTP_ADDR",":8080"),MongoDBURI:strings.TrimSpace(os.Getenv("MONGODB_URI")),MongoDBDatabase:strings.TrimSpace(os.Getenv("MONGODB_DATABASE")),LogLevel:value("LOG_LEVEL","info"),JWTSigningKey:strings.TrimSpace(os.Getenv("JWT_SIGNING_KEY")),AccessTokenTTL:time.Duration(access)*time.Minute,RefreshTokenTTL:time.Duration(refresh)*24*time.Hour,LocationFreshness:time.Duration(fresh)*time.Second,LocationMaxAccuracyMeters:accuracy,LocationMaxSpeedMPS:speed,ValhallaBaseURL:strings.TrimRight(value("VALHALLA_BASE_URL","http://localhost:8002"),"/"),ValhallaTimeout:time.Duration(timeout)*time.Second}
  if cfg.MongoDBURI==""{return Config{},errors.New("MONGODB_URI is required")}
  if cfg.MongoDBDatabase==""{return Config{},errors.New("MONGODB_DATABASE is required")}
  if len(cfg.JWTSigningKey)<32{return Config{},errors.New("JWT_SIGNING_KEY must be at least 32 characters")}
- if cfg.ValhallaBaseURL==""{return Config{},errors.New("VALHALLA_BASE_URL is required")}
  return cfg,nil
 }
 func value(key,fallback string)string{if v:=strings.TrimSpace(os.Getenv(key));v!=""{return v};return fallback}
