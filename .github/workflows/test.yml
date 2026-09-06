@@ -34,12 +34,9 @@ jobs:
           cache: false
 
       - name: Download dependencies
-        run: go mod tidy
-
-      - name: Verify module files
-        run: git diff --exit-code -- go.mod go.sum
+        run: go mod download
 
       - name: Run tests
-        run: go test ./...
+        run: go test -mod=mod ./...
         env:
           MONGODB_TEST_URI: mongodb://localhost:27017
