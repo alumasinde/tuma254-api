@@ -4,9 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
     services:
       mongodb:
         image: mongo:8
@@ -16,14 +20,26 @@ jobs:
           --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
           go-version: "1.25.x"
-      - run: go mod tidy
-      - run: go test ./...
+          check-latest: true
+          cache: false
+
+      - name: Download dependencies
+        run: go mod tidy
+
+      - name: Verify module files
+        run: git diff --exit-code -- go.mod go.sum
+
+      - name: Run tests
+        run: go test ./...
         env:
           MONGODB_TEST_URI: mongodb://localhost:27017
