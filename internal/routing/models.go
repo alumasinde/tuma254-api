@@ -1,5 +1,7 @@
 package routing
 
+import "context"
+
 type Point struct{ Latitude float64 `json:"latitude"`; Longitude float64 `json:"longitude"` }
 type RouteRequest struct{ Origin Point `json:"origin"`; Destination Point `json:"destination"`; Costing string `json:"costing"` }
 type Route struct{ DistanceMeters float64 `json:"distance_meters"`; DurationSeconds float64 `json:"duration_seconds"`; Geometry string `json:"geometry,omitempty"` }
