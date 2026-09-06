@@ -1,13 +1,9 @@
 .env
 .env.*
 !.env.example
-
 bin/
-tmp/
 coverage.out
-
-environments/Production.bru
-environments/*.local.bru
-
-*.secret
-*.key
+*.test
+.DS_Store
+.idea/
+.vscode/
