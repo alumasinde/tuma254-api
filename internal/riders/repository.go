@@ -77,19 +77,32 @@ func (r *Repository) HasActiveVehicle(ctx context.Context, riderID bson.ObjectID
 }
 
 func (r *Repository) SetActiveVehicle(ctx context.Context, riderID, vehicleID bson.ObjectID) (Vehicle, error) {
-	if _, err := r.db.Collection("rider_vehicles").UpdateMany(ctx, bson.M{"riderId": riderID, "active": true}, bson.M{"$set": bson.M{"active": false, "updatedAt": time.Now().UTC()}}); err != nil {
+	var target Vehicle
+	err := r.db.Collection("rider_vehicles").FindOne(ctx, bson.M{"_id": vehicleID, "riderId": riderID}).Decode(&target)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return Vehicle{}, ErrNotFound
+	}
+	if err != nil {
 		return Vehicle{}, err
 	}
+
 	now := time.Now().UTC()
-	var vehicle Vehicle
-	err := r.db.Collection("rider_vehicles").FindOneAndUpdate(
+	if _, err := r.db.Collection("rider_vehicles").UpdateMany(
+		ctx,
+		bson.M{"riderId": riderID, "active": true},
+		bson.M{"$set": bson.M{"active": false, "updatedAt": now}},
+	); err != nil {
+		return Vehicle{}, err
+	}
+
+	err = r.db.Collection("rider_vehicles").FindOneAndUpdate(
 		ctx,
 		bson.M{"_id": vehicleID, "riderId": riderID},
 		bson.M{"$set": bson.M{"active": true, "updatedAt": now}},
 		options.FindOneAndUpdate().SetReturnDocument(options.After),
-	).Decode(&vehicle)
+	).Decode(&target)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return Vehicle{}, ErrNotFound
 	}
-	return vehicle, err
+	return target, err
 }
