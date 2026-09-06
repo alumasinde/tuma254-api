@@ -5,28 +5,20 @@ import (
 	"net/http"
 )
 
-func NewHandler(health func() error) http.Handler {
-	mux := http.NewServeMux()
+type RouteRegistrar interface{RegisterRoutes(*http.ServeMux)}
 
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		if err := health(); err != nil {
-			WriteJSON(w, http.StatusServiceUnavailable, ErrorResponse{Error: "unhealthy"})
-			return
-		}
-		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+func NewHandler(health func()error,registrars ...RouteRegistrar)http.Handler{
+	mux:=http.NewServeMux()
+	mux.HandleFunc("GET /health",func(w http.ResponseWriter,r *http.Request){
+		if err:=health();err!=nil{WriteJSON(w,http.StatusServiceUnavailable,ErrorResponse{Error:"unhealthy"});return}
+		WriteJSON(w,http.StatusOK,map[string]string{"status":"ok"})
 	})
-
-	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, r *http.Request) {
-		if err := health(); err != nil {
-			WriteJSON(w, http.StatusServiceUnavailable, ErrorResponse{Error: "not ready"})
-			return
-		}
-		WriteJSON(w, http.StatusOK, map[string]string{"status": "ready"})
+	mux.HandleFunc("GET /ready",func(w http.ResponseWriter,r *http.Request){
+		if err:=health();err!=nil{WriteJSON(w,http.StatusServiceUnavailable,ErrorResponse{Error:"not ready"});return}
+		WriteJSON(w,http.StatusOK,map[string]string{"status":"ready"})
 	})
-
+	for _,registrar:=range registrars{registrar.RegisterRoutes(mux)}
 	return mux
 }
 
-func DecodeJSON(r *http.Request, dst any) error {
-	return json.NewDecoder(r.Body).Decode(dst)
-}
+func DecodeJSON(r *http.Request,dst any)error{return json.NewDecoder(r.Body).Decode(dst)}
