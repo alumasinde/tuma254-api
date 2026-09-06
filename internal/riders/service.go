@@ -56,8 +56,11 @@ func (s *Service) CreateApplication(ctx context.Context, userID string) (PublicP
 	}
 	now := time.Now().UTC()
 	profile, err := s.repo.CreateProfile(ctx, Profile{
-		UserID: id, VerificationStatus: VerificationDraft, Availability: AvailabilityOffline,
-		CreatedAt: now, UpdatedAt: now,
+		UserID: id,
+		VerificationStatus: VerificationDraft,
+		Availability: AvailabilityOffline,
+		CreatedAt: now,
+		UpdatedAt: now,
 	})
 	if err != nil {
 		return PublicProfile{}, err
@@ -142,6 +145,7 @@ func (s *Service) AddVehicle(ctx context.Context, userID string, vehicle Vehicle
 	if profile.VerificationStatus != VerificationDraft && profile.VerificationStatus != VerificationRejected {
 		return PublicVehicle{}, ErrInvalidState
 	}
+
 	vehicle.RiderID = id
 	vehicle.Type = strings.ToLower(strings.TrimSpace(vehicle.Type))
 	vehicle.RegistrationNumber = normalizeRegistration(vehicle.RegistrationNumber)
@@ -151,10 +155,11 @@ func (s *Service) AddVehicle(ctx context.Context, userID string, vehicle Vehicle
 	if !validVehicleType(vehicle.Type) || vehicle.RegistrationNumber == "" {
 		return PublicVehicle{}, ErrInvalidVehicle
 	}
+
 	now := time.Now().UTC()
+	vehicle.Active = false
 	vehicle.CreatedAt = now
 	vehicle.UpdatedAt = now
-	vehicle.Active = true
 	created, err := s.repo.CreateVehicle(ctx, vehicle)
 	if err != nil {
 		return PublicVehicle{}, err
