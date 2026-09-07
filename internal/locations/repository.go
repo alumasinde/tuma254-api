@@ -21,6 +21,7 @@ func (r *Repository) UpsertRiderLocation(ctx context.Context, value RiderLocatio
 func (r *Repository) FindRiderLocation(ctx context.Context,id bson.ObjectID)(RiderLocation,error){
  var out RiderLocation;err:=r.db.Collection("rider_locations").FindOne(ctx,bson.M{"riderId":id}).Decode(&out);if errors.Is(err,mongo.ErrNoDocuments){return out,ErrNotFound};return out,err
 }
+func (r *Repository) LatestTrustedRiderLocation(ctx context.Context,id bson.ObjectID,freshAfter time.Time)(RiderLocation,error){var out RiderLocation;err:=r.db.Collection("rider_locations").FindOne(ctx,bson.M{"riderId":id,"updatedAt":bson.M{"$gte":freshAfter}}).Decode(&out);if errors.Is(err,mongo.ErrNoDocuments){return out,ErrNotFound};return out,err}
 func (r *Repository) Nearby(ctx context.Context, point Point, maxDistance float64, limit int, freshAfter time.Time)([]RiderLocation,error){
  filter:=bson.M{"updatedAt":bson.M{"$gte":freshAfter},"location":bson.M{"$near":bson.M{"$geometry":point,"$maxDistance":maxDistance}}}
  cur,err:=r.db.Collection("rider_locations").Find(ctx,filter,options.Find().SetLimit(int64(limit)));if err!=nil{return nil,err};defer cur.Close(ctx)
