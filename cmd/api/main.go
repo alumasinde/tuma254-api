@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alumasinde/tuma254-api/internal/platform/config"
 	"github.com/alumasinde/tuma254-api/internal/identity"
+	"github.com/alumasinde/tuma254-api/internal/platform/config"
 	"github.com/alumasinde/tuma254-api/internal/platform/database/postgres"
 	"github.com/alumasinde/tuma254-api/internal/platform/logging"
 )
@@ -30,21 +30,36 @@ func main() {
 	defer db.Close()
 
 	mux := http.NewServeMux()
-	identity.RegisterRoutes(mux, db, cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
+	identity.RegisterRoutes(mux, db, identity.Config{
+		JWTSecret: cfg.JWTSecret,
+		OTPHashSecret: cfg.OTPHashSecret,
+		AccessTTL: cfg.AccessTTL,
+		RefreshTTL: cfg.RefreshTTL,
+		OTPTTL: cfg.OTPTTL,
+		OTPResendCooldown: cfg.OTPResendCooldown,
+		OTPResendWindow: cfg.OTPResendWindow,
+		OTPMaxResends: cfg.OTPMaxResends,
+		OTPMaxAttempts: cfg.OTPMaxAttempts,
+	}, log)
+
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		_ = r
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status":"ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
 		if err := db.Ping(ctx); err != nil { http.Error(w, "not ready", http.StatusServiceUnavailable); return }
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status":"ready"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
 	})
 
-	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5*time.Second, ReadTimeout: 15*time.Second, WriteTimeout: 30*time.Second, IdleTimeout: 60*time.Second}
+	srv := &http.Server{
+		Addr: cfg.HTTPAddr, Handler: mux,
+		ReadHeaderTimeout: 5*time.Second, ReadTimeout: 15*time.Second,
+		WriteTimeout: 30*time.Second, IdleTimeout: 60*time.Second,
+	}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
 	stop := make(chan os.Signal, 1)
