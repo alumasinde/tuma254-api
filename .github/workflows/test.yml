@@ -21,6 +21,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+        command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
 
     steps:
       - name: Checkout
@@ -36,7 +37,19 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Initialize MongoDB replica set
+        run: |
+          docker exec $(docker ps -q --filter ancestor=mongo:8) mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+          for i in {1..30}; do
+            if docker exec $(docker ps -q --filter ancestor=mongo:8) mongosh --quiet --eval "rs.status().members[0].stateStr" | grep -q PRIMARY; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MongoDB replica set did not become PRIMARY"
+          exit 1
+
       - name: Run tests
         run: go test -mod=mod ./...
         env:
-          MONGODB_TEST_URI: mongodb://localhost:27017
+          MONGODB_TEST_URI: mongodb://localhost:27017/?replicaSet=rs0
