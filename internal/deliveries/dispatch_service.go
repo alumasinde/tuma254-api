@@ -61,14 +61,7 @@ func (s *DispatchService) Offer(ctx context.Context, deliveryID, riderID, sender
 	}
 
 	now := time.Now().UTC()
-	o := AssignmentOffer{
-		ID:         bson.NewObjectID(),
-		DeliveryID: did,
-		RiderID:    rid,
-		Status:     StatusOffered,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(s.offerTTL),
-	}
+	o := AssignmentOffer{ID: bson.NewObjectID(), DeliveryID: did, RiderID: rid, Status: StatusOffered, CreatedAt: now, ExpiresAt: now.Add(s.offerTTL)}
 	if err := s.offers.Create(ctx, o); err != nil {
 		return AssignmentOffer{}, err
 	}
@@ -104,32 +97,17 @@ func (s *DispatchService) Accept(ctx context.Context, offerID, riderID string) (
 		return Public{}, ErrForbidden
 	}
 
-	// Delivery assignment is the authoritative winner claim. Two concurrent
-	// riders can race here, but only one can atomically move requested -> assigned.
-	d, err := s.repo.Find(ctx, o.DeliveryID)
-	if err != nil {
-		return Public{}, err
-	}
-	_ = d
-	ok, err = s.repo.Transition(
-		ctx,
-		o.DeliveryID,
-		StatusRequested,
-		StatusAssigned,
-		bson.M{"riderId": rid, "updatedAt": now},
-		Event{DeliveryID: o.DeliveryID, Type: "rider_assignment_accepted", ActorID: rid, At: now},
-	)
+	ok, err = s.repo.ClaimAssignment(ctx, o.DeliveryID, rid, now)
 	if err != nil {
 		return Public{}, err
 	}
 	if !ok {
-		// Another rider already won. Do not mutate this offer after the delivery
-		// assignment has been lost.
 		return Public{}, ErrState
 	}
 
-	// Consume the accepted offer only after the delivery claim succeeds. The
-	// delivery state remains authoritative under concurrent acceptance.
+	// The delivery claim is the concurrency winner. The corresponding offer is
+	// now only a historical dispatch artifact; best-effort response recording
+	// must never be able to change an already-assigned delivery.
 	_, _ = s.offers.Respond(ctx, oid, rid, StatusOffered, StatusAssigned, now)
 
 	if plan, err := s.plans.FindByDelivery(ctx, o.DeliveryID); err == nil {
@@ -137,9 +115,10 @@ func (s *DispatchService) Accept(ctx context.Context, offerID, riderID string) (
 		_ = s.plans.Complete(ctx, plan.ID, now)
 	}
 
-	d.Status = StatusAssigned
-	d.RiderID = &rid
-	d.UpdatedAt = now
+	d, err := s.repo.Find(ctx, o.DeliveryID)
+	if err != nil {
+		return Public{}, err
+	}
 	return public(d), nil
 }
 
