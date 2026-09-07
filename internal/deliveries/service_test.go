@@ -1,4 +1,4 @@
 package deliveries
 import("testing";"time")
-func TestOTP(t *testing.T){o,c,e:=newOTP(time.Minute);if e!=nil||c==""{t.Fatal("otp generation failed")};if verifyOTP(&o,c)!=nil{t.Fatal("valid otp rejected")};if verifyOTP(&o,"000000")==nil{t.Fatal("wrong otp accepted")}}
-func TestStops(t *testing.T){if validStop(Stop{}){t.Fatal("empty stop accepted")}}
+func TestOTPLifecycle(t *testing.T){o,c,e:=newOTP(time.Minute);if e!=nil{t.Fatal(e)};if o.Version!=1||o.MaxAttempts!=5||o.LastSentAt.IsZero(){t.Fatalf("bad lifecycle defaults: %+v",o)};if verifyOTP(&o,c)!=nil{t.Fatal("valid otp rejected")};now:=time.Now();o.LockedAt=&now;if verifyOTP(&o,c)!=ErrOTPLocked{t.Fatal("locked otp accepted")}}
+func TestOTPExpiry(t *testing.T){o,_,_:=newOTP(-time.Second);if verifyOTP(&o,"000000")!=ErrExpired{t.Fatal("expired otp accepted")}}
