@@ -206,7 +206,7 @@ func (r *Postgres) CreateSession(ctx context.Context, id uuid.UUID, h []byte, ex
 	return err
 }
 
-func (r *Postgres) ConsumeSession(ctx context.Context, h []byte) (models.User, error) {
+func (r *Postgres) RotateSession(ctx context.Context, h []byte, replacementHash []byte, replacementExpiresAt time.Time, ua, ip string) (models.User, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil { return models.User{}, err }
 	defer tx.Rollback(ctx)
@@ -233,6 +233,9 @@ func (r *Postgres) ConsumeSession(ctx context.Context, h []byte) (models.User, e
 	}
 	rows.Close()
 	if err = rows.Err(); err != nil { return models.User{}, err }
+	var addr any
+	if parsedIP := net.ParseIP(strings.TrimSpace(ip)); parsedIP != nil { addr = parsedIP.String() }
+	if _, err = tx.Exec(ctx, "INSERT INTO refresh_sessions(user_id,token_hash,expires_at,user_agent,ip_address) VALUES($1,$2,$3,$4,$5)", id, replacementHash, replacementExpiresAt, ua, addr); err != nil { return models.User{}, err }
 	if err = tx.Commit(ctx); err != nil { return models.User{}, err }
 	return u, nil
 }
