@@ -131,8 +131,15 @@ func (s *Service) sendPhoneVerification(ctx context.Context, user models.User) e
 	if err = s.repo.IssueOTP(ctx, user.ID, user.Phone, models.OTPPurposePhoneVerification, s.hashOTP(code), time.Now().Add(s.otpPolicy.TTL), s.otpPolicy.MaxAttempts, s.otpPolicy.ResendCooldown, s.otpPolicy.ResendWindow, s.otpPolicy.MaxResends); err != nil {
 		return err
 	}
-	if s.sender == nil { return errors.New("sms sender is not configured") }
-	return s.sender.Send(ctx, SMSMessage{To: user.Phone, Body: fmt.Sprintf("Your Tuma254 verification code is %s. It expires in %d minutes.", code, int(s.otpPolicy.TTL.Minutes()))})
+	if s.sender == nil {
+		_ = s.repo.RevokeActiveOTP(ctx, user.ID, models.OTPPurposePhoneVerification)
+		return errors.New("sms sender is not configured")
+	}
+	if err := s.sender.Send(ctx, SMSMessage{To: user.Phone, Body: fmt.Sprintf("Your Tuma254 verification code is %s. It expires in %d minutes.", code, int(s.otpPolicy.TTL.Minutes()))}); err != nil {
+		_ = s.repo.RevokeActiveOTP(ctx, user.ID, models.OTPPurposePhoneVerification)
+		return err
+	}
+	return nil
 }
 
 func (s *Service) hashOTP(code string) []byte {
