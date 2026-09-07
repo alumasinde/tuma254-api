@@ -49,9 +49,13 @@ type testDispatch struct {
 func dispatchDB(t *testing.T) *testDispatch {
 	t.Helper()
 	uri := os.Getenv("MONGODB_TEST_URI")
-	if uri == "" { t.Skip("MONGODB_TEST_URI not configured") }
+	if uri == "" {
+		t.Skip("MONGODB_TEST_URI not configured")
+	}
 	db := testkit.MongoDatabase(t, uri, "tuma254_dispatch_test_"+bson.NewObjectID().Hex())
-	if err := migrations.Run(context.Background(), db, migrations.All()...); err != nil { t.Fatalf("migrate: %v", err) }
+	if err := migrations.Run(context.Background(), db, migrations.All()...); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
 	return &testDispatch{repo: deliveries.NewRepository(db), offers: deliveries.NewOfferRepository(db), plans: deliveries.NewPlanRepository(db)}
 }
 
