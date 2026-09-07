@@ -7,5 +7,6 @@ func All() []Migration {
   UsersRiders{},
   Locations{},
   Deliveries{},
+  Favourites{},
  }
 }
