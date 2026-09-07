@@ -5,4 +5,4 @@ func TestOTPExpiry(t *testing.T){o,_,_:=newOTP(-time.Second);if verifyOTP(&o,"00
 
 func TestCustodyValidation(t *testing.T){if validCustody(CustodyInput{}){t.Fatal("empty custody accepted")};if !validCustody(CustodyInput{Kind:"photo"}){t.Fatal("evidence kind rejected")}}
 
-func TestCustodyRequiresPointWhenLocationReaderEnabled(t *testing.T){if validCustody(CustodyInput{Kind:"photo",Location:locations.Point{Type:"Point",Coordinates:[2]float64{36.8,-1.2}})==false{t.Fatal("valid point rejected")}}
+func TestCustodyRequiresPointWhenLocationReaderEnabled(t *testing.T){in:=CustodyInput{Kind:"photo",Location:locations.Point{Type:"Point",Coordinates:[2]float64{36.8,-1.2}}};if !validCustody(in){t.Fatal("valid point rejected")}}
