@@ -51,7 +51,9 @@ func main() {
  )
  locationHandler := locations.NewHandler(locationService, auth)
 
- deliveryHandler := deliveries.NewHandler(deliveries.NewService(deliveries.NewRepository(db.Database()), riderService), auth)
+ deliveryRepository := deliveries.NewRepository(db.Database())
+ deliveryHandler := deliveries.NewHandler(deliveries.NewService(deliveryRepository, riderService), auth)
+ dispatchHandler := deliveries.NewDispatchHandler(deliveries.NewDispatchService(deliveryRepository, deliveries.NewOfferRepository(db.Database()), riderService), auth)
 
  router := routing.NewValhalla(cfg.ValhallaBaseURL, cfg.ValhallaTimeout)
  routingHandler := routing.NewHandler(routing.NewService(router), auth)
@@ -65,6 +67,7 @@ func main() {
    riderHandler,
    locationHandler,
    deliveryHandler,
+   dispatchHandler,
    routingHandler,
   ),
   ReadHeaderTimeout: 5 * time.Second,
