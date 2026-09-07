@@ -108,10 +108,34 @@ func (s *Service) Login(ctx context.Context, in dtos.LoginRequest, ua, ip string
 }
 
 func (s *Service) Refresh(ctx context.Context, token, ua, ip string) (dtos.AuthResponse, error) {
-	h := sha256.Sum256([]byte(token))
-	u, err := s.repo.ConsumeSession(ctx, h[:])
-	if err != nil { return dtos.AuthResponse{}, ErrInvalidToken }
-	return s.issue(ctx, u, ua, ip)
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return dtos.AuthResponse{}, ErrInvalidToken
+	}
+
+	now := time.Now()
+	replacementToken, replacementHash, err := generateRefreshToken()
+	if err != nil {
+		return dtos.AuthResponse{}, err
+	}
+
+	currentHash := sha256.Sum256([]byte(token))
+	user, err := s.repo.RotateSession(ctx, currentHash[:], replacementHash, now.Add(s.refreshTTL), ua, ip)
+	if err != nil {
+		return dtos.AuthResponse{}, ErrInvalidToken
+	}
+
+	accessToken, err := s.createAccessToken(user, now)
+	if err != nil {
+		return dtos.AuthResponse{}, err
+	}
+
+	return dtos.AuthResponse{
+		AccessToken: accessToken,
+		RefreshToken: replacementToken,
+		TokenType: "Bearer",
+		ExpiresIn: int64(s.accessTTL.Seconds()),
+	}, nil
 }
 
 func (s *Service) Logout(ctx context.Context, token string) error {
@@ -176,23 +200,43 @@ func validEmail(v string) bool {
 	return at > 0 && at < len(v)-1 && strings.Contains(v[at+1:], ".")
 }
 
-func (s *Service) issue(ctx context.Context, u models.User, ua, ip string) (dtos.AuthResponse, error) {
+func (s *Service) issue(ctx context.Context, user models.User, userAgent, ip string) (dtos.AuthResponse, error) {
 	now := time.Now()
-	claims := jwt.MapClaims{
-		"sub": u.ID.String(), "roles": u.Roles, "iat": now.Unix(),
-		"exp": now.Add(s.accessTTL).Unix(), "iss": "tuma254",
-	}
-	access, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
-	if err != nil { return dtos.AuthResponse{}, err }
-
-	raw := make([]byte, 48)
-	if _, err = rand.Read(raw); err != nil { return dtos.AuthResponse{}, err }
-	refresh := base64.RawURLEncoding.EncodeToString(raw)
-	h := sha256.Sum256([]byte(refresh))
-	if err = s.repo.CreateSession(ctx, u.ID, h[:], now.Add(s.refreshTTL), ua, ip); err != nil {
+	accessToken, err := s.createAccessToken(user, now)
+	if err != nil {
 		return dtos.AuthResponse{}, err
 	}
-	return dtos.AuthResponse{AccessToken: access, RefreshToken: refresh, TokenType: "Bearer", ExpiresIn: int64(s.accessTTL.Seconds())}, nil
+
+	refreshToken, refreshHash, err := generateRefreshToken()
+	if err != nil {
+		return dtos.AuthResponse{}, err
+	}
+	if err := s.repo.CreateSession(ctx, user.ID, refreshHash, now.Add(s.refreshTTL), userAgent, ip); err != nil {
+		return dtos.AuthResponse{}, err
+	}
+
+	return dtos.AuthResponse{AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer", ExpiresIn: int64(s.accessTTL.Seconds())}, nil
+}
+
+func (s *Service) createAccessToken(user models.User, now time.Time) (string, error) {
+	claims := jwt.MapClaims{
+		"sub": user.ID.String(),
+		"roles": user.Roles,
+		"iat": now.Unix(),
+		"exp": now.Add(s.accessTTL).Unix(),
+		"iss": "tuma254",
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
+}
+
+func generateRefreshToken() (string, []byte, error) {
+	raw := make([]byte, 48)
+	if _, err := rand.Read(raw); err != nil {
+		return "", nil, err
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	hash := sha256.Sum256([]byte(token))
+	return token, hash[:], nil
 }
 
 func (s *Service) ParseAccess(raw string) (string, []string, error) {
