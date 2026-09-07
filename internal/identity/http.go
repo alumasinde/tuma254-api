@@ -1,9 +1,7 @@
 package identity
 
 import (
-	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -27,7 +25,7 @@ func(h *Handler)RegisterRoutes(mux *http.ServeMux){
 func(h *Handler)register(w http.ResponseWriter,r *http.Request){
 	if !h.allow(w,r,10,time.Minute){return}
 	var input RegisterInput
-	if err:=decode(r,&input);err!=nil{writeError(w,http.StatusBadRequest,"invalid_request");return}
+	if err:=decode(w,r,&input);err!=nil{writeError(w,http.StatusBadRequest,"invalid_request");return}
 	result,err:=h.service.Register(r.Context(),input,clientIP(r))
 	if err!=nil{
 		if IsDuplicate(err){writeError(w,http.StatusConflict,"account_already_exists");return}
@@ -77,13 +75,7 @@ func(h *Handler)allow(w http.ResponseWriter,r *http.Request,limit int,window tim
 	return false
 }
 
-func decode(r *http.Request,dst any)error{
-	decoder:=json.NewDecoder(io.LimitReader(r.Body,1<<20))
-	decoder.DisallowUnknownFields()
-	if err:=decoder.Decode(dst);err!=nil{return err}
-	if err:=decoder.Decode(&struct{}{});err!=io.EOF{return errors.New("multiple JSON values")}
-	return nil
-}
+func decode(w http.ResponseWriter,r *http.Request,dst any)error{return httpserver.DecodeJSONStrict(w,r,dst)}
 
 func writeError(w http.ResponseWriter,status int,code string){httpserver.WriteJSON(w,status,map[string]string{"error":code})}
 func clientIP(r *http.Request)string{host,_,err:=net.SplitHostPort(strings.TrimSpace(r.RemoteAddr));if err==nil{return host};return r.RemoteAddr}
