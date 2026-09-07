@@ -25,6 +25,9 @@ type Config struct {
 	OTPResendWindow time.Duration
 	OTPMaxResends int
 	OTPMaxAttempts int
+	SMSProvider string
+	SMSWebhookURL string
+	SMSWebhookToken string
 }
 
 func Load() (Config, error) {
@@ -36,6 +39,9 @@ func Load() (Config, error) {
 		DatabaseURL: strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		JWTSecret: strings.TrimSpace(os.Getenv("JWT_ACCESS_SECRET")),
 		OTPHashSecret: strings.TrimSpace(os.Getenv("OTP_HASH_SECRET")),
+		SMSProvider: value("SMS_PROVIDER", "log"),
+		SMSWebhookURL: strings.TrimSpace(os.Getenv("SMS_WEBHOOK_URL")),
+		SMSWebhookToken: strings.TrimSpace(os.Getenv("SMS_WEBHOOK_TOKEN")),
 	}
 	if cfg.DatabaseURL == "" { return Config{}, errors.New("DATABASE_URL is required") }
 	if len(cfg.JWTSecret) < 32 { return Config{}, errors.New("JWT_ACCESS_SECRET must be at least 32 bytes") }
@@ -49,6 +55,9 @@ func Load() (Config, error) {
 	if cfg.OTPMaxResends, err = positiveInt("OTP_MAX_RESENDS", 5); err != nil { return Config{}, err }
 	if cfg.OTPMaxAttempts, err = positiveInt("OTP_MAX_ATTEMPTS", 5); err != nil { return Config{}, err }
 	if cfg.AppEnv != "development" && cfg.AppEnv != "test" && cfg.AppEnv != "production" { return Config{}, fmt.Errorf("invalid APP_ENV") }
+	if cfg.SMSProvider != "log" && cfg.SMSProvider != "webhook" { return Config{}, fmt.Errorf("invalid SMS_PROVIDER") }
+	if cfg.AppEnv == "production" && cfg.SMSProvider != "webhook" { return Config{}, errors.New("production requires SMS_PROVIDER=webhook or another production sender implementation") }
+	if cfg.SMSProvider == "webhook" && cfg.SMSWebhookURL == "" { return Config{}, errors.New("SMS_WEBHOOK_URL is required for SMS_PROVIDER=webhook") }
 	return cfg, nil
 }
 
