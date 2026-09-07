@@ -4,5 +4,5 @@ type Dispatch struct{};func(Dispatch)Version()int{return 7};func(Dispatch)Name()
 func(Dispatch)Up(ctx context.Context,db *mongo.Database)error{_,e:=db.Collection("delivery_assignment_offers").Indexes().CreateMany(ctx,[]mongo.IndexModel{
  {Keys:bson.D{{Key:"deliveryId",Value:1},{Key:"status",Value:1}}},
  {Keys:bson.D{{Key:"riderId",Value:1},{Key:"status",Value:1},{Key:"expiresAt",Value:1}}},
- {Keys:bson.D{{Key:"deliveryId",Value:1}},Options:&mongo.IndexOptions{Unique:true,PartialFilterExpression:bson.M{"status":StatusOffered}}},
+ {Keys:bson.D{{Key:"deliveryId",Value:1}},Options:&mongo.IndexOptions{Unique:true,PartialFilterExpression:bson.M{"status":"offered"}}},
 });return e}
