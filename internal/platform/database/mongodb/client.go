@@ -33,6 +33,20 @@ func Connect(ctx context.Context, uri, database string) (*Client, error) {
 
 func (c *Client) Database() *mongo.Database { return c.db }
 
+func (c *Client) EnsureTransactionTopology(ctx context.Context) error {
+	var hello struct {
+		SetName string `bson:"setName"`
+		Msg     string `bson:"msg"`
+	}
+	if err := c.db.Client().Database("admin").RunCommand(ctx, map[string]int{"hello": 1}).Decode(&hello); err != nil {
+		return fmt.Errorf("inspect mongodb topology: %w", err)
+	}
+	if hello.Msg == "isdbgrid" || hello.SetName != "" {
+		return nil
+	}
+	return fmt.Errorf("mongodb transactions require a replica set member or mongos")
+}
+
 func (c *Client) Close(ctx context.Context) error {
 	return c.client.Disconnect(ctx)
 }
