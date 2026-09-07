@@ -159,7 +159,7 @@ func (s *DispatchService) ExpireAndAdvance(ctx context.Context, offerID string) 
 	if now.Before(o.ExpiresAt) {
 		return ErrOffer
 	}
-	ok, err := s.offers.Respond(ctx, oid, o.RiderID, StatusOffered, StatusExpired, now)
+	ok, err := s.offers.Expire(ctx, oid, o.RiderID, now)
 	if err != nil {
 		return err
 	}
