@@ -8,5 +8,6 @@ func All() []Migration {
   Locations{},
   Deliveries{},
   Favourites{},
+  Dispatch{},
  }
 }
