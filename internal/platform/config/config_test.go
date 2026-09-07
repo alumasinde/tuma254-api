@@ -25,3 +25,14 @@ func TestLoad(t *testing.T) {
 	if cfg.MongoDBDatabase != "tuma254_test" { t.Fatalf("unexpected database: %s", cfg.MongoDBDatabase) }
 	if cfg.AccessTokenTTL <= 0 || cfg.RefreshTokenTTL <= 0 { t.Fatal("expected positive token TTLs") }
 }
+
+
+func TestProductionRejectsUnsafeDefaults(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("MONGODB_URI", "mongodb://localhost:27017")
+	t.Setenv("MONGODB_DATABASE", "tuma254")
+	t.Setenv("JWT_SIGNING_KEY", "example-development-secret-key-0123456789")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected unsafe production configuration to be rejected")
+	}
+}
