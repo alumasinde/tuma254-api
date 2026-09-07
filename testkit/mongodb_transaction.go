@@ -2,10 +2,10 @@ package testkit
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -29,16 +29,13 @@ func MongoTransactionDatabase(t *testing.T, uri, name string) *mongo.Database {
 		t.Fatalf("ping transactional test mongodb: %v", err)
 	}
 
-	// Transactions are supported only by replica-set members and mongos. This
-	// command gives the test a deterministic prerequisite check before running
-	// a concurrent workload that would otherwise produce 32 identical errors.
-	var hello bsonM
-	if err := client.Database("admin").RunCommand(connectCtx, bsonM{"hello": 1}).Decode(&hello); err != nil {
+	var hello bson.M
+	if err := client.Database("admin").RunCommand(connectCtx, bson.D{{Key: "hello", Value: 1}}).Decode(&hello); err != nil {
 		t.Fatalf("inspect MongoDB topology: %v", err)
 	}
-	if hello.String("msg") == "isdbgrid" {
+	if msg, _ := hello["msg"].(string); msg == "isdbgrid" {
 		// mongos is transaction-capable.
-	} else if hello.String("setName") == "" {
+	} else if _, ok := hello["setName"].(string); !ok {
 		t.Fatalf("transactional custody tests require MongoDB replica set or mongos; connected endpoint is standalone")
 	}
 
@@ -51,15 +48,4 @@ func MongoTransactionDatabase(t *testing.T, uri, name string) *mongo.Database {
 	return db
 }
 
-type bsonM map[string]any
-
-func (m bsonM) String(key string) string {
-	v, ok := m[key]
-	if !ok {
-		return ""
-	}
-	s, _ := v.(string)
-	return s
-}
-
-var _ = fmt.Sprintf
+type _ = mongo.Database
