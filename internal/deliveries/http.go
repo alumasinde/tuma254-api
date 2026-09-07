@@ -1,0 +1,17 @@
+package deliveries
+import("encoding/json";"net/http";"github.com/alumasinde/tuma254-api/internal/identity";httpserver "github.com/alumasinde/tuma254-api/internal/platform/http")
+type Authenticator interface{RequireAuth(http.HandlerFunc)http.HandlerFunc}
+type Handler struct{s *Service;a Authenticator};func NewHandler(s *Service,a Authenticator)*Handler{return &Handler{s,a}}
+func(h *Handler)RegisterRoutes(m *http.ServeMux){m.HandleFunc("POST /api/v1/deliveries",h.a.RequireAuth(h.create));m.HandleFunc("GET /api/v1/deliveries/{deliveryID}",h.a.RequireAuth(h.get));m.HandleFunc("POST /api/v1/deliveries/{deliveryID}/assign",h.a.RequireAuth(h.assign));m.HandleFunc("POST /api/v1/deliveries/{deliveryID}/pickup-otp",h.a.RequireAuth(h.pickupOTP));m.HandleFunc("POST /api/v1/deliveries/{deliveryID}/pickup/verify",h.a.RequireAuth(h.pickupVerify));m.HandleFunc("POST /api/v1/deliveries/{deliveryID}/transit",h.a.RequireAuth(h.transit));m.HandleFunc("POST /api/v1/deliveries/{deliveryID}/delivery-otp",h.a.RequireAuth(h.deliveryOTP));m.HandleFunc("POST /api/v1/deliveries/{deliveryID}/delivery/verify",h.a.RequireAuth(h.deliveryVerify));m.HandleFunc("POST /api/v1/deliveries/{deliveryID}/fail",h.a.RequireAuth(h.fail))}
+func uid(r *http.Request)string{c,_:=identity.ClaimsFromContext(r.Context());return c.Subject}
+func dec(r *http.Request,v any)error{return json.NewDecoder(r.Body).Decode(v)}
+func(h *Handler)create(w http.ResponseWriter,r *http.Request){var in CreateInput;if dec(r,&in)!=nil{errJSON(w,400);return};v,e:=h.s.Create(r.Context(),uid(r),in);write(w,v,e,201)}
+func(h *Handler)get(w http.ResponseWriter,r *http.Request){v,e:=h.s.Get(r.Context(),r.PathValue("deliveryID"));write(w,v,e,200)}
+func(h *Handler)assign(w http.ResponseWriter,r *http.Request){var x struct{RiderID string `json:"rider_id"`};if dec(r,&x)!=nil{errJSON(w,400);return};v,e:=h.s.Assign(r.Context(),r.PathValue("deliveryID"),x.RiderID,uid(r));write(w,v,e,200)}
+func(h *Handler)pickupOTP(w http.ResponseWriter,r *http.Request){c,e:=h.s.RequestPickupOTP(r.Context(),r.PathValue("deliveryID"),uid(r));if e!=nil{errJSON(w,400);return};httpserver.WriteJSON(w,200,map[string]string{"otp":c})}
+func(h *Handler)pickupVerify(w http.ResponseWriter,r *http.Request){var x struct{OTP string `json:"otp"`};if dec(r,&x)!=nil{errJSON(w,400);return};v,e:=h.s.VerifyPickup(r.Context(),r.PathValue("deliveryID"),uid(r),x.OTP);write(w,v,e,200)}
+func(h *Handler)transit(w http.ResponseWriter,r *http.Request){v,e:=h.s.StartTransit(r.Context(),r.PathValue("deliveryID"),uid(r));write(w,v,e,200)}
+func(h *Handler)deliveryOTP(w http.ResponseWriter,r *http.Request){c,e:=h.s.RequestDeliveryOTP(r.Context(),r.PathValue("deliveryID"),uid(r));if e!=nil{errJSON(w,400);return};httpserver.WriteJSON(w,200,map[string]string{"otp":c})}
+func(h *Handler)deliveryVerify(w http.ResponseWriter,r *http.Request){var x struct{OTP string `json:"otp"`};if dec(r,&x)!=nil{errJSON(w,400);return};v,e:=h.s.VerifyDelivery(r.Context(),r.PathValue("deliveryID"),uid(r),x.OTP);write(w,v,e,200)}
+func(h *Handler)fail(w http.ResponseWriter,r *http.Request){var x struct{Reason string `json:"reason"`};if dec(r,&x)!=nil{errJSON(w,400);return};v,e:=h.s.Fail(r.Context(),r.PathValue("deliveryID"),uid(r),x.Reason);write(w,v,e,200)}
+func write(w http.ResponseWriter,v any,e error,status int){if e!=nil{errJSON(w,400);return};httpserver.WriteJSON(w,status,v)};func errJSON(w http.ResponseWriter,c int){httpserver.WriteJSON(w,c,map[string]string{"error":"delivery_operation_failed"})}
