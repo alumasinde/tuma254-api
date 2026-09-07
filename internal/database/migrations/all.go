@@ -6,5 +6,6 @@ func All() []Migration {
   IdentityAuth{},
   UsersRiders{},
   Locations{},
+  Deliveries{},
  }
 }
