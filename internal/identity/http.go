@@ -38,7 +38,7 @@ func(h *Handler)register(w http.ResponseWriter,r *http.Request){
 func(h *Handler)login(w http.ResponseWriter,r *http.Request){
 	if !h.allow(w,r,8,time.Minute){return}
 	var input LoginInput
-	if err:=decode(r,&input);err!=nil{writeError(w,http.StatusBadRequest,"invalid_request");return}
+	if err:=decode(w,r,&input);err!=nil{writeError(w,http.StatusBadRequest,"invalid_request");return}
 	result,err:=h.service.Login(r.Context(),input,clientIP(r))
 	if err!=nil{writeError(w,http.StatusUnauthorized,"invalid_credentials");return}
 	httpserver.WriteJSON(w,http.StatusOK,result)
