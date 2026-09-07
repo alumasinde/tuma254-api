@@ -14,10 +14,14 @@ import (
 func MongoTransactionDatabase(t *testing.T, uri, name string) *mongo.Database {
 	t.Helper()
 
-	connectCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	connectCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(options.Client().ApplyURI(uri))
+	client, err := mongo.Connect(
+		options.Client().
+			ApplyURI(uri).
+			SetDirect(true),
+	)
 	if err != nil {
 		t.Fatalf("connect transactional test mongodb: %v", err)
 	}
