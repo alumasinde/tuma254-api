@@ -121,6 +121,12 @@ func (r *Postgres) IssueOTP(ctx context.Context, userID uuid.UUID, phone, purpos
 	return tx.Commit(ctx)
 }
 
+func (r *Postgres) RevokeActiveOTP(ctx context.Context, userID uuid.UUID, purpose string) error {
+	_, err := r.db.Exec(ctx, `UPDATE otp_challenges SET revoked_at=now()
+		WHERE user_id=$1 AND purpose=$2 AND verified_at IS NULL AND revoked_at IS NULL`, userID, purpose)
+	return err
+}
+
 func (r *Postgres) VerifyOTP(ctx context.Context, phone, purpose string, codeHash []byte) (models.OTPVerifyResult, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil { return models.OTPVerifyResult{}, err }
