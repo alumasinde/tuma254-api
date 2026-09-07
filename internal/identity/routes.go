@@ -21,6 +21,14 @@ type Config struct {
 	OTPResendWindow time.Duration
 	OTPMaxResends int
 	OTPMaxAttempts int
+	SMSProvider string
+	SMSWebhookURL string
+	SMSWebhookToken string
+}
+
+func buildSMSSender(cfg Config, log *slog.Logger) (services.SMSSender, error) {
+	if cfg.SMSProvider == "webhook" { return services.NewWebhookSMSSender(cfg.SMSWebhookURL, cfg.SMSWebhookToken) }
+	return services.NewLoggingSMSSender(log), nil
 }
 
 func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.Logger) {
@@ -31,7 +39,9 @@ func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.
 		MaxResends: cfg.OTPMaxResends,
 		MaxAttempts: cfg.OTPMaxAttempts,
 	}
-	svc := services.New(repositories.New(db), services.NewLoggingSMSSender(log), cfg.JWTSecret, cfg.OTPHashSecret, cfg.AccessTTL, cfg.RefreshTTL, policy)
+	sender, err := buildSMSSender(cfg, log)
+	if err != nil { panic(err) }
+	svc := services.New(repositories.New(db), sender, cfg.JWTSecret, cfg.OTPHashSecret, cfg.AccessTTL, cfg.RefreshTTL, policy)
 	h := handlers.New(svc)
 
 	mux.HandleFunc("POST /api/v1/auth/register", h.Register)
