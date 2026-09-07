@@ -43,7 +43,7 @@ func main() {
 		SMSProvider: cfg.SMSProvider,
 		SMSWebhookURL: cfg.SMSWebhookURL,
 		SMSWebhookToken: cfg.SMSWebhookToken,
-	}, log)
+	}, log); err != nil { log.Error("identity setup failed", "error", err); os.Exit(1) }
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		_ = r
