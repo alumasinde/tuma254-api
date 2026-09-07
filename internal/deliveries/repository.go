@@ -32,39 +32,44 @@ func (r *Repository) Find(ctx context.Context, id bson.ObjectID) (Delivery, erro
 
 func (r *Repository) Transition(ctx context.Context, id bson.ObjectID, from, to string, set bson.M, e Event) (bool, error) {
 	set["status"] = to
-	res, err := r.db.Collection("deliveries").UpdateOne(ctx, bson.M{"_id": id, "status": from}, bson.M{"$set": set})
-	if err != nil {
-		return false, err
-	}
-	if res.ModifiedCount == 0 {
-		return false, nil
-	}
-	_, err = r.db.Collection("delivery_events").InsertOne(ctx, e)
-	return true, err
+	session, err := r.db.Client().StartSession()
+	if err != nil { return false, err }
+	defer session.EndSession(ctx)
+
+	claimed := false
+	_, err = session.WithTransaction(ctx, func(sc context.Context) (interface{}, error) {
+		res, err := r.db.Collection("deliveries").UpdateOne(sc, bson.M{"_id": id, "status": from}, bson.M{"$set": set})
+		if err != nil { return nil, err }
+		if res.ModifiedCount != 1 { return nil, nil }
+		claimed = true
+		if _, err := r.db.Collection("delivery_events").InsertOne(sc, e); err != nil { return nil, err }
+		return nil, nil
+	})
+	if err != nil { return false, err }
+	return claimed, nil
 }
 
 // ClaimAssignment is the single-writer concurrency gate for rider assignment.
 // Exactly one caller can move a requested delivery into assigned state.
 func (r *Repository) ClaimAssignment(ctx context.Context, id, rider bson.ObjectID, now time.Time) (bool, error) {
-	res, err := r.db.Collection("deliveries").UpdateOne(
-		ctx,
-		bson.M{"_id": id, "status": StatusRequested},
-		bson.M{"$set": bson.M{"riderId": rider, "status": StatusAssigned, "updatedAt": now}},
-	)
-	if err != nil {
-		return false, err
-	}
-	if res.ModifiedCount != 1 {
-		return false, nil
-	}
-	_, err = r.db.Collection("delivery_events").InsertOne(ctx, Event{
-		ID:         bson.NewObjectID(),
-		DeliveryID: id,
-		Type:       "rider_assignment_accepted",
-		ActorID:    rider,
-		At:         now,
+	session, err := r.db.Client().StartSession()
+	if err != nil { return false, err }
+	defer session.EndSession(ctx)
+
+	claimed := false
+	_, err = session.WithTransaction(ctx, func(sc context.Context) (interface{}, error) {
+		res, err := r.db.Collection("deliveries").UpdateOne(sc,
+			bson.M{"_id": id, "status": StatusRequested},
+			bson.M{"$set": bson.M{"riderId": rider, "status": StatusAssigned, "updatedAt": now}},
+		)
+		if err != nil { return nil, err }
+		if res.ModifiedCount != 1 { return nil, nil }
+		claimed = true
+		_, err = r.db.Collection("delivery_events").InsertOne(sc, Event{ID:bson.NewObjectID(),DeliveryID:id,Type:"rider_assignment_accepted",ActorID:rider,At:now})
+		return nil, err
 	})
-	return true, err
+	if err != nil { return false, err }
+	return claimed, nil
 }
 
 func (r *Repository) CountActiveForRider(ctx context.Context, id bson.ObjectID) (int64, error) {
@@ -160,4 +165,23 @@ func (r *Repository) TransitionWithCustody(ctx context.Context, id bson.ObjectID
 func (r *Repository) CreateIncident(ctx context.Context, i Incident) error {
 	_, err := r.db.Collection("delivery_incidents").InsertOne(ctx, i)
 	return err
+}
+
+func (r *Repository) FailWithIncident(ctx context.Context, id bson.ObjectID, from, to string, set bson.M, e Event, incident Incident) (bool, error) {
+	set["status"] = to
+	session, err := r.db.Client().StartSession()
+	if err != nil { return false, err }
+	defer session.EndSession(ctx)
+	claimed := false
+	_, err = session.WithTransaction(ctx, func(sc context.Context) (interface{}, error) {
+		res, err := r.db.Collection("deliveries").UpdateOne(sc, bson.M{"_id":id,"status":from}, bson.M{"$set":set})
+		if err != nil { return nil, err }
+		if res.ModifiedCount != 1 { return nil, nil }
+		claimed = true
+		if _, err := r.db.Collection("delivery_events").InsertOne(sc,e); err != nil { return nil, err }
+		if _, err := r.db.Collection("delivery_incidents").InsertOne(sc,incident); err != nil { return nil, err }
+		return nil,nil
+	})
+	if err != nil { return false, err }
+	return claimed,nil
 }
