@@ -65,7 +65,7 @@ func main() {
 
  server := &http.Server{
   Addr: cfg.HTTPAddr,
-  Handler: httpserver.NewHandler(
+  Handler: httpserver.WithRequestLogging(logger, httpserver.WithSecurityHeaders(httpserver.NewHandler(
    func() error { return db.Health(context.Background()) },
    auth,
    userHandler,
@@ -74,7 +74,7 @@ func main() {
    deliveryHandler,
    dispatchHandler,
    routingHandler,
-  ),
+  ))),
   ReadHeaderTimeout: 5 * time.Second,
   ReadTimeout: 15 * time.Second,
   WriteTimeout: 15 * time.Second,
