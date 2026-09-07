@@ -1,6 +1,7 @@
 package locations
 
 import (
+ "errors"
  "net/http"
  "strconv"
  "github.com/alumasinde/tuma254-api/internal/identity"
