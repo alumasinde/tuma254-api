@@ -22,6 +22,7 @@ type Repository interface {
 	FindByID(context.Context, uuid.UUID) (models.User, error)
 
 	IssueOTP(context.Context, uuid.UUID, string, string, []byte, time.Time, int, time.Duration, time.Duration, int) error
+	RevokeActiveOTP(context.Context, uuid.UUID, string) error
 	VerifyOTP(context.Context, string, string, []byte) (models.OTPVerifyResult, error)
 
 	CreateSession(context.Context, uuid.UUID, []byte, time.Time, string, string) error
