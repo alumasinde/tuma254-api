@@ -1,0 +1,34 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: tuma254_test
+          POSTGRES_USER: tuma254
+          POSTGRES_PASSWORD: tuma254
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tuma254 -d tuma254_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.0"
+      - run: go mod tidy
+      - run: go test ./...
+        env:
+          DATABASE_URL: postgres://tuma254:tuma254@localhost:5432/tuma254_test?sslmode=disable
+          JWT_ACCESS_SECRET: test-secret-that-is-at-least-thirty-two-bytes-long
