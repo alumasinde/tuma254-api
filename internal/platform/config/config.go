@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,4 +54,4 @@ func Load() (Config, error) {
 
 func value(key, fallback string) string { if v := strings.TrimSpace(os.Getenv(key)); v != "" { return v }; return fallback }
 func duration(key string, fallback time.Duration) (time.Duration, error) { v:=strings.TrimSpace(os.Getenv(key)); if v=="" { return fallback,nil }; d,err:=time.ParseDuration(v); if err!=nil||d<=0 { return 0,fmt.Errorf("invalid %s",key) }; return d,nil }
-func positiveInt(key string, fallback int) (int,error) { v:=strings.TrimSpace(os.Getenv(key)); if v=="" { return fallback,nil }; var n int; if _,err:=fmt.Sscanf(v,"%d",&n); err!=nil||n<=0 { return 0,fmt.Errorf("invalid %s",key) }; return n,nil }
+func positiveInt(key string, fallback int) (int,error) { v:=strings.TrimSpace(os.Getenv(key)); if v=="" { return fallback,nil }; n,err:=strconv.Atoi(v); if err!=nil||n<=0 { return 0,fmt.Errorf("invalid %s",key) }; return n,nil }
