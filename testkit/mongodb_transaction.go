@@ -11,8 +11,6 @@ import (
 )
 
 // MongoTransactionDatabase connects to a transaction-capable MongoDB endpoint.
-// A standalone mongod cannot execute multi-document transactions; these tests
-// therefore fail clearly rather than silently downgrading the consistency model.
 func MongoTransactionDatabase(t *testing.T, uri, name string) *mongo.Database {
 	t.Helper()
 
@@ -35,8 +33,8 @@ func MongoTransactionDatabase(t *testing.T, uri, name string) *mongo.Database {
 	}
 	if msg, _ := hello["msg"].(string); msg == "isdbgrid" {
 		// mongos is transaction-capable.
-	} else if _, ok := hello["setName"].(string); !ok {
-		t.Fatalf("transactional custody tests require MongoDB replica set or mongos; connected endpoint is standalone")
+	} else if setName, _ := hello["setName"].(string); setName == "" {
+		t.Fatalf("transactional tests require MongoDB replica set or mongos; connected endpoint is standalone")
 	}
 
 	db := client.Database(name)
@@ -47,5 +45,3 @@ func MongoTransactionDatabase(t *testing.T, uri, name string) *mongo.Database {
 	})
 	return db
 }
-
-type _ = mongo.Database
