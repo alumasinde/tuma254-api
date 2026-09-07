@@ -34,7 +34,6 @@ func (f *dispatchEligibility) next(id string) (bool, error) {
 	}
 	return v[i], nil
 }
-
 func (f *dispatchEligibility) CanPublishLocation(_ context.Context, id string) (bool, error) {
 	return f.next(id)
 }
@@ -43,9 +42,14 @@ func (f *dispatchEligibility) CanAppearNearby(_ context.Context, id string) (boo
 }
 
 type dispatchNearby struct{ values []locations.PublicRiderLocation }
-
 func (f dispatchNearby) Nearby(context.Context, float64, float64, float64, int) ([]locations.PublicRiderLocation, error) {
 	return f.values, nil
+}
+
+type testDispatch struct {
+	repo   *deliveries.Repository
+	offers *deliveries.OfferRepository
+	plans  *deliveries.PlanRepository
 }
 
 func dispatchDB(t *testing.T) *testDispatch {
@@ -61,23 +65,17 @@ func dispatchDB(t *testing.T) *testDispatch {
 	return &testDispatch{repo: deliveries.NewRepository(db), offers: deliveries.NewOfferRepository(db), plans: deliveries.NewPlanRepository(db)}
 }
 
-type testDispatch struct {
-	repo  *deliveries.Repository
-	offers *deliveries.OfferRepository
-	plans *deliveries.PlanRepository
-}
-
 func seedDelivery(t *testing.T, r *deliveries.Repository, id, sender bson.ObjectID) deliveries.Delivery {
 	t.Helper()
 	now := time.Now().UTC()
 	d := deliveries.Delivery{
-		ID:     id,
+		ID: id,
 		Sender: deliveries.Party{UserID: sender},
 		Method: deliveries.MethodNearby,
 		Status: deliveries.StatusRequested,
 		Pickup: deliveries.Stop{Address: "Pickup", ContactName: "Sender", Phone: "0710000000", Location: locations.Point{Type: "Point", Coordinates: [2]float64{36.8219, -1.2921}}},
 		Recipient: deliveries.Stop{Address: "Drop", ContactName: "Receiver", Phone: "0720000000", Location: locations.Point{Type: "Point", Coordinates: [2]float64{36.8300, -1.3000}}},
-		Package:   deliveries.Package{Description: "Parcel", WeightKG: 1},
+		Package: deliveries.Package{Description: "Parcel", WeightKG: 1},
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -92,19 +90,46 @@ func TestDispatchConcurrentAcceptOnlyOneWins(t *testing.T) {
 	ctx := context.Background()
 	sender := bson.NewObjectID()
 	d := seedDelivery(t, x.repo, bson.NewObjectID(), sender)
-	r1, r2 := bson.NewObjectID(), bson.NewObjectID()
+	rider := bson.NewObjectID()
 	now := time.Now().UTC()
-	o1 := deliveries.AssignmentOffer{ID: bson.NewObjectID(), DeliveryID: d.ID, RiderID: r1, Status: deliveries.StatusOffered, CreatedAt: now, ExpiresAt: now.Add(time.Minute)}
-	if err := x.offers.Create(ctx, o1); err != nil {
+	o := deliveries.AssignmentOffer{ID: bson.NewObjectID(), DeliveryID: d.ID, RiderID: rider, Status: deliveries.StatusOffered, CreatedAt: now, ExpiresAt: now.Add(time.Minute)}
+	if err := x.offers.Create(ctx, o); err != nil {
 		t.Fatal(err)
 	}
-	// Only one live offer may exist for a delivery. This mirrors the production
-	// invariant rather than bypassing it with two synthetic simultaneous offers.
-	o2 := deliveries.AssignmentOffer{ID: bson.NewObjectID(), DeliveryID: d.ID, RiderID: r2, Status: deliveries.StatusOffered, CreatedAt: now, ExpiresAt: now.Add(time.Minute)}
-	if err := x.offers.Create(ctx, o1); err != nil {
-		_ = o2
+	elig := &dispatchEligibility{calls: map[string]int{}, answers: map[string][]bool{rider.Hex(): {true}}}
+	s := deliveries.NewDispatchService(x.repo, x.offers, x.plans, elig, dispatchNearby{})
+
+	const attempts = 2
+	var wg sync.WaitGroup
+	wg.Add(attempts)
+	results := make(chan error, attempts)
+	for i := 0; i < attempts; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := s.Accept(ctx, o.ID.Hex(), rider.Hex())
+			results <- err
+		}()
 	}
-	_ = o2
+	wg.Wait()
+	close(results)
+
+	wins := 0
+	for err := range results {
+		if err == nil {
+			wins++
+		}
+	}
+	if wins != 1 {
+		t.Fatalf("expected exactly one winner, got %d", wins)
+	}
+
+	stored, err := x.repo.Find(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != deliveries.StatusAssigned || stored.RiderID == nil || *stored.RiderID != rider {
+		t.Fatalf("delivery not assigned correctly: %+v", stored)
+	}
 }
 
 func TestDispatchDeclineSkipsRiderWhoBecomesUnavailable(t *testing.T) {
@@ -149,7 +174,7 @@ func TestDispatchExpiryRaceAdvancesOnce(t *testing.T) {
 	d := seedDelivery(t, x.repo, bson.NewObjectID(), sender)
 	r1, r2 := bson.NewObjectID(), bson.NewObjectID()
 	now := time.Now().UTC()
-	elig := &dispatchEligibility{calls: map[string]int{}, answers: map[string][]bool{r1.Hex(): {true}, r2.Hex(): {true}}}
+	elig := &dispatchEligibility{calls: map[string]int{}, answers: map[string][]bool{r2.Hex(): {true}}}
 	s := deliveries.NewDispatchService(x.repo, x.offers, x.plans, elig, dispatchNearby{})
 	o := deliveries.AssignmentOffer{ID: bson.NewObjectID(), DeliveryID: d.ID, RiderID: r1, Status: deliveries.StatusOffered, CreatedAt: now.Add(-time.Minute), ExpiresAt: now.Add(-time.Second)}
 	if err := x.offers.Create(ctx, o); err != nil {
@@ -159,6 +184,7 @@ func TestDispatchExpiryRaceAdvancesOnce(t *testing.T) {
 	if err := x.plans.Create(ctx, p); err != nil {
 		t.Fatal(err)
 	}
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 	errs := make(chan error, 2)
@@ -170,6 +196,7 @@ func TestDispatchExpiryRaceAdvancesOnce(t *testing.T) {
 	}
 	wg.Wait()
 	close(errs)
+
 	plan, err := x.plans.FindByDelivery(ctx, d.ID)
 	if err != nil {
 		t.Fatal(err)
