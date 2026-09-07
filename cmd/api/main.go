@@ -40,6 +40,9 @@ func main() {
 		OTPResendWindow: cfg.OTPResendWindow,
 		OTPMaxResends: cfg.OTPMaxResends,
 		OTPMaxAttempts: cfg.OTPMaxAttempts,
+		SMSProvider: cfg.SMSProvider,
+		SMSWebhookURL: cfg.SMSWebhookURL,
+		SMSWebhookToken: cfg.SMSWebhookToken,
 	}, log)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
