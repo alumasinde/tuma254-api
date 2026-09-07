@@ -26,7 +26,7 @@ type Repository interface {
 	VerifyOTP(context.Context, string, string, []byte) (models.OTPVerifyResult, error)
 
 	CreateSession(context.Context, uuid.UUID, []byte, time.Time, string, string) error
-	ConsumeSession(context.Context, []byte) (models.User, error)
+	RotateSession(context.Context, []byte, []byte, time.Time, string, string) (models.User, error)
 	RevokeSession(context.Context, []byte) error
 }
 
