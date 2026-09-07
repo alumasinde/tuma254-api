@@ -52,7 +52,9 @@ func main() {
  locationHandler := locations.NewHandler(locationService, auth)
 
  deliveryRepository := deliveries.NewRepository(db.Database())
- deliveryHandler := deliveries.NewHandler(deliveries.NewService(deliveryRepository, riderService), auth)
+ deliveryService := deliveries.NewService(deliveryRepository, riderService)
+ deliveryService.SetLocationReader(locations.NewRepository(db.Database()))
+ deliveryHandler := deliveries.NewHandler(deliveryService, auth)
  dispatchService := deliveries.NewDispatchService(deliveryRepository, deliveries.NewOfferRepository(db.Database()), deliveries.NewPlanRepository(db.Database()), riderService, locationService)
  dispatchHandler := deliveries.NewDispatchHandler(dispatchService, auth)
 
