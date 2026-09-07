@@ -31,7 +31,7 @@ func buildSMSSender(cfg Config, log *slog.Logger) (services.SMSSender, error) {
 	return services.NewLoggingSMSSender(log), nil
 }
 
-func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.Logger) {
+func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.Logger) error {
 	policy := services.OTPPolicy{
 		TTL: cfg.OTPTTL,
 		ResendCooldown: cfg.OTPResendCooldown,
@@ -40,7 +40,7 @@ func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.
 		MaxAttempts: cfg.OTPMaxAttempts,
 	}
 	sender, err := buildSMSSender(cfg, log)
-	if err != nil { panic(err) }
+	if err != nil { return err }
 	svc := services.New(repositories.New(db), sender, cfg.JWTSecret, cfg.OTPHashSecret, cfg.AccessTTL, cfg.RefreshTTL, policy)
 	h := handlers.New(svc)
 
@@ -51,4 +51,5 @@ func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.Refresh)
 	mux.HandleFunc("POST /api/v1/auth/logout", h.Logout)
 	mux.Handle("GET /api/v1/me", h.RequireAuth(http.HandlerFunc(h.Me)))
+	return nil
 }
