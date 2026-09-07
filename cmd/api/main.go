@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/alumasinde/tuma254-api/internal/platform/config"
+	"github.com/alumasinde/tuma254-api/internal/identity"
 	"github.com/alumasinde/tuma254-api/internal/platform/database/postgres"
 	"github.com/alumasinde/tuma254-api/internal/platform/logging"
 )
@@ -29,6 +30,7 @@ func main() {
 	defer db.Close()
 
 	mux := http.NewServeMux()
+	identity.RegisterRoutes(mux, db, cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		_ = r
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
