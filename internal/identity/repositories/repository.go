@@ -1,24 +1,20 @@
 package repositories
 
 import (
-	"context"
-
-	"github.com/alumasinde/tuma254-api/internal/identity/models"
+ "context"
+ "time"
+ "github.com/alumasinde/tuma254-api/internal/identity/models"
+ "github.com/google/uuid"
+ "github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrNotFound = errNotFound("identity record not found")
-type errNotFound string
-func (e errNotFound) Error() string { return string(e) }
-
-type UserRepository interface {
-	Create(ctx context.Context, user models.User, defaultRole string) (models.User, error)
-	FindByIdentifier(ctx context.Context, identifier string) (models.User, error)
-	FindPublicByID(ctx context.Context, userID string) (models.PublicUser, error)
-	ReplacePasswordHash(ctx context.Context, userID, passwordHash string) error
+type Repository interface {
+ CreateUser(context.Context,string,string,string,string,string)(models.User,error)
+ FindByEmail(context.Context,string)(models.User,string,error)
+ FindByID(context.Context,uuid.UUID)(models.User,error)
+ CreateSession(context.Context,uuid.UUID,[]byte,time.Time,string,string) error
+ ConsumeSession(context.Context,[]byte)(models.User,error)
+ RevokeSession(context.Context,[]byte) error
 }
-
-type SessionRepository interface {
-	Create(ctx context.Context, userID, tokenHash string) error
-	Consume(ctx context.Context, tokenHash string) (string, error)
-	Revoke(ctx context.Context, tokenHash string) error
-}
+type Postgres struct{db *pgxpool.Pool}
+func New(db *pgxpool.Pool)*Postgres{return &Postgres{db:db}}
