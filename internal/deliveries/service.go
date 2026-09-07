@@ -28,7 +28,7 @@ func haversineMeters(lat1,lng1,lat2,lng2 float64)float64{const R=6371000;dlat:=(
 func sin2(x float64)float64{return math.Sin(x)*math.Sin(x)}
 func cosRad(d float64)float64{return math.Cos(d*3.141592653589793/180)}
 func atan2sqrt(a float64)float64{return math.Atan2(math.Sqrt(a),math.Sqrt(1-a))}
-func validCustody(in CustodyInput)bool{in.Kind=strings.TrimSpace(in.Kind);if in.Kind==""{return false};p:=in.Location;if p.Type!=""&&(p.Type!="Point"||p.Coordinates[0]<-180||p.Coordinates[0]>180||p.Coordinates[1]<-90||p.Coordinates[1]>90){return false};return true}
+func validCustody(in CustodyInput)bool{in.Kind=strings.TrimSpace(in.Kind);if in.Kind==""{return false};p:=in.Location;if p.Type!=""&&(p.Type!="Point"||p.Coordinates[0] < -180||p.Coordinates[0]>180||p.Coordinates[1]<-90||p.Coordinates[1]>90){return false};return true}
 func validStop(x Stop)bool{return strings.TrimSpace(x.Address)!=""&&x.Location.Type=="Point"&&x.Location.Coordinates[0]>=-180&&x.Location.Coordinates[0]<=180&&x.Location.Coordinates[1]>=-90&&x.Location.Coordinates[1]<=90&&strings.TrimSpace(x.ContactName)!=""&&strings.TrimSpace(x.Phone)!=""}
 func newOTP(ttl time.Duration)(OTP,string,error){n,e:=rand.Int(rand.Reader,big.NewInt(1000000));if e!=nil{return OTP{},"",e};code:=fmt.Sprintf("%06d",n.Int64());h:=sha256.Sum256([]byte(code));now:=time.Now().UTC();return OTP{Hash:hex.EncodeToString(h[:]),ExpiresAt:now.Add(ttl),MaxAttempts:5,LastSentAt:now,Version:1},code,nil}
 func verifyOTP(o *OTP,code string)error{if o==nil{return ErrOTP};if o.LockedAt!=nil{return ErrOTPLocked};if time.Now().UTC().After(o.ExpiresAt){return ErrExpired};h:=sha256.Sum256([]byte(code));if hex.EncodeToString(h[:])!=o.Hash{return ErrOTP};return nil}
