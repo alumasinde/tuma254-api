@@ -53,7 +53,10 @@ func main() {
 
  deliveryRepository := deliveries.NewRepository(db.Database())
  deliveryHandler := deliveries.NewHandler(deliveries.NewService(deliveryRepository, riderService), auth)
- dispatchHandler := deliveries.NewDispatchHandler(deliveries.NewDispatchService(deliveryRepository, deliveries.NewOfferRepository(db.Database()), deliveries.NewPlanRepository(db.Database()), riderService, locationService), auth)
+ dispatchService := deliveries.NewDispatchService(deliveryRepository, deliveries.NewOfferRepository(db.Database()), deliveries.NewPlanRepository(db.Database()), riderService, locationService)
+ dispatchHandler := deliveries.NewDispatchHandler(dispatchService, auth)
+
+ go func(){ticker:=time.NewTicker(5*time.Second);defer ticker.Stop();for{select{case <-ctx.Done():return;case <-ticker.C:if err:=dispatchService.SweepExpired(ctx,100);err!=nil{logger.Error("dispatch expiry sweep failed","error",err)}}}}()
 
  router := routing.NewValhalla(cfg.ValhallaBaseURL, cfg.ValhallaTimeout)
  routingHandler := routing.NewHandler(routing.NewService(router), auth)
