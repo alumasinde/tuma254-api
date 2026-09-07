@@ -104,8 +104,8 @@ func (r *Postgres) IssueOTP(ctx context.Context, userID uuid.UUID, phone, purpos
 
 	var count int
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM otp_challenges
-		WHERE user_id=$1 AND purpose=$2 AND created_at >= now() - $3::interval`,
-		userID, purpose, window.String()).Scan(&count); err != nil {
+		WHERE user_id=$1 AND purpose=$2 AND created_at >= now() - ($3 * interval '1 second')`,
+		userID, purpose, int64(window.Seconds())).Scan(&count); err != nil {
 		return err
 	}
 	if count >= maxResends { return ErrOTPRateLimited }
