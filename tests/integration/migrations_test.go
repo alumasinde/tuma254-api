@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/alumasinde/tuma254-api/internal/database/migrations"
 	"github.com/alumasinde/tuma254-api/testkit"
@@ -16,10 +17,14 @@ func TestMigrations(t *testing.T) {
 	}
 
 	db := testkit.MongoDatabase(t, uri, "tuma254_migration_test")
-	if err := migrations.Run(context.Background(), db, migrations.All()...); err != nil {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	if err := migrations.Run(ctx, db, migrations.All()...); err != nil {
 		t.Fatalf("run migrations: %v", err)
 	}
-	if err := migrations.Run(context.Background(), db, migrations.All()...); err != nil {
+	if err := migrations.Run(ctx, db, migrations.All()...); err != nil {
 		t.Fatalf("migrations should be idempotent: %v", err)
 	}
 }
