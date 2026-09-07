@@ -30,7 +30,7 @@ func main() {
 	defer db.Close()
 
 	mux := http.NewServeMux()
-	identity.RegisterRoutes(mux, db, identity.Config{
+	if err := identity.RegisterRoutes(mux, db, identity.Config{
 		JWTSecret: cfg.JWTSecret,
 		OTPHashSecret: cfg.OTPHashSecret,
 		AccessTTL: cfg.AccessTTL,
