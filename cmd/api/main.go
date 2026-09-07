@@ -10,6 +10,7 @@ import (
  "time"
 
  "github.com/alumasinde/tuma254-api/internal/identity"
+ "github.com/alumasinde/tuma254-api/internal/deliveries"
  "github.com/alumasinde/tuma254-api/internal/locations"
  "github.com/alumasinde/tuma254-api/internal/riders"
  "github.com/alumasinde/tuma254-api/internal/routing"
@@ -50,6 +51,8 @@ func main() {
  )
  locationHandler := locations.NewHandler(locationService, auth)
 
+ deliveryHandler := deliveries.NewHandler(deliveries.NewService(deliveries.NewRepository(db.Database()), riderService), auth)
+
  router := routing.NewValhalla(cfg.ValhallaBaseURL, cfg.ValhallaTimeout)
  routingHandler := routing.NewHandler(routing.NewService(router), auth)
 
@@ -61,6 +64,7 @@ func main() {
    userHandler,
    riderHandler,
    locationHandler,
+   deliveryHandler,
    routingHandler,
   ),
   ReadHeaderTimeout: 5 * time.Second,
