@@ -32,6 +32,7 @@ func main() {
  db, err := mongodb.Connect(ctx, cfg.MongoDBURI, cfg.MongoDBDatabase)
  if err != nil { logger.Error("database connection failed", "error", err); os.Exit(1) }
  defer db.Close(context.Background())
+ if cfg.AppEnv == "production" { if err := db.EnsureTransactionTopology(ctx); err != nil { logger.Error("database topology is not transaction capable", "error", err); os.Exit(1) } }
 
  identityRepo := identity.NewRepository(db.Database())
  tokens := identity.NewTokenManager(cfg.JWTSigningKey, cfg.AccessTokenTTL)
