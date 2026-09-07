@@ -1,2 +1,0 @@
-CREATE TABLE roles (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
-INSERT INTO roles(code,name) VALUES ('customer','Customer'),('rider','Rider'),('seller','Seller'),('admin','Administrator'),('dispatcher','Dispatcher'),('support','Support');
