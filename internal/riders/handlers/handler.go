@@ -1,24 +1,58 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
+	"github.com/alumasinde/tuma254-api/internal/platform/httpctx"
+	"github.com/alumasinde/tuma254-api/internal/platform/httpx"
 	"github.com/alumasinde/tuma254-api/internal/riders/models"
 	"github.com/alumasinde/tuma254-api/internal/riders/services"
 	"github.com/google/uuid"
 )
 
 type Handler struct{ svc *services.Service }
-func New(svc *services.Service)*Handler{return &Handler{svc:svc}}
-func (h *Handler) GetMe(w http.ResponseWriter,r *http.Request){id,ok:=currentUser(r);if !ok{http.Error(w,"unauthorized",401);return};p,err:=h.svc.Get(r.Context(),id);if errors.Is(err,services.ErrInvalidState){http.Error(w,"invalid rider state",409);return};if err!=nil{http.Error(w,"rider profile not found",404);return};write(w,200,p)}
-func(h *Handler) Create(w http.ResponseWriter,r *http.Request){id,ok:=currentUser(r);if !ok{http.Error(w,"unauthorized",401);return};p,err:=h.svc.CreateApplication(r.Context(),id);if err!=nil{http.Error(w,"rider application failed",400);return};write(w,201,p)}
-func(h *Handler) Submit(w http.ResponseWriter,r *http.Request){id,ok:=currentUser(r);if !ok{http.Error(w,"unauthorized",401);return};p,err:=h.svc.SubmitApplication(r.Context(),id);if err!=nil{http.Error(w,err.Error(),409);return};write(w,200,p)}
-func(h *Handler) SetAvailability(w http.ResponseWriter,r *http.Request){id,ok:=currentUser(r);if !ok{http.Error(w,"unauthorized",401);return};var in struct{Availability models.Availability `json:"availability"`};if !decode(w,r,&in){return};p,err:=h.svc.SetAvailability(r.Context(),id,in.Availability);if err!=nil{http.Error(w,err.Error(),409);return};write(w,200,p)}
-func(h *Handler) AddVehicle(w http.ResponseWriter,r *http.Request){id,ok:=currentUser(r);if !ok{http.Error(w,"unauthorized",401);return};var in models.Vehicle;if !decode(w,r,&in){return};v,err:=h.svc.AddVehicle(r.Context(),id,in);if err!=nil{http.Error(w,err.Error(),400);return};write(w,201,v)}
-func(h *Handler) ListVehicles(w http.ResponseWriter,r *http.Request){id,ok:=currentUser(r);if !ok{http.Error(w,"unauthorized",401);return};v,err:=h.svc.ListVehicles(r.Context(),id);if err!=nil{http.Error(w,"rider profile not found",404);return};write(w,200,v)}
-func(h *Handler) SetActiveVehicle(w http.ResponseWriter,r *http.Request){id,ok:=currentUser(r);if !ok{http.Error(w,"unauthorized",401);return};vid,err:=uuid.Parse(r.PathValue("vehicleID"));if err!=nil{http.Error(w,"invalid vehicle id",400);return};v,err:=h.svc.SetActiveVehicle(r.Context(),id,vid);if err!=nil{http.Error(w,err.Error(),409);return};write(w,200,v)}
-func currentUser(r *http.Request)(uuid.UUID,bool){v:=r.Context().Value("tuma254.user_id");s,ok:=v.(string);if !ok{return uuid.Nil,false};id,err:=uuid.Parse(s);return id,err==nil}
-func decode(w http.ResponseWriter,r *http.Request,dst any)bool{d:=json.NewDecoder(http.MaxBytesReader(w,r.Body,1<<20));d.DisallowUnknownFields();if err:=d.Decode(dst);err!=nil{http.Error(w,"invalid request",400);return false};return true}
-func write(w http.ResponseWriter,status int,v any){w.Header().Set("Content-Type","application/json; charset=utf-8");w.WriteHeader(status);_ = json.NewEncoder(w).Encode(v)}
+func New(svc *services.Service) *Handler { return &Handler{svc: svc} }
+
+func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := httpctx.UserID(r.Context()); if !ok { httpx.Error(w, 401, "unauthorized"); return }
+	profile, err := h.svc.Get(r.Context(), userID)
+	if errors.Is(err, services.ErrInvalidState) { httpx.Error(w, 409, "invalid rider state"); return }
+	if err != nil { httpx.Error(w, 404, "rider profile not found"); return }
+	httpx.WriteJSON(w, 200, profile)
+}
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+	userID, ok := httpctx.UserID(r.Context()); if !ok { httpx.Error(w, 401, "unauthorized"); return }
+	profile, err := h.svc.CreateApplication(r.Context(), userID); if err != nil { httpx.Error(w, 400, "rider application failed"); return }
+	httpx.WriteJSON(w, 201, profile)
+}
+func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
+	userID, ok := httpctx.UserID(r.Context()); if !ok { httpx.Error(w, 401, "unauthorized"); return }
+	profile, err := h.svc.SubmitApplication(r.Context(), userID); if err != nil { httpx.Error(w, 409, err.Error()); return }
+	httpx.WriteJSON(w, 200, profile)
+}
+func (h *Handler) SetAvailability(w http.ResponseWriter, r *http.Request) {
+	userID, ok := httpctx.UserID(r.Context()); if !ok { httpx.Error(w, 401, "unauthorized"); return }
+	var in struct{ Availability models.Availability `json:"availability"` }
+	if err := httpx.DecodeJSON(w, r, &in); err != nil { httpx.Error(w, 400, "invalid request"); return }
+	profile, err := h.svc.SetAvailability(r.Context(), userID, in.Availability); if err != nil { httpx.Error(w, 409, err.Error()); return }
+	httpx.WriteJSON(w, 200, profile)
+}
+func (h *Handler) AddVehicle(w http.ResponseWriter, r *http.Request) {
+	userID, ok := httpctx.UserID(r.Context()); if !ok { httpx.Error(w, 401, "unauthorized"); return }
+	var in models.Vehicle
+	if err := httpx.DecodeJSON(w, r, &in); err != nil { httpx.Error(w, 400, "invalid request"); return }
+	vehicle, err := h.svc.AddVehicle(r.Context(), userID, in); if err != nil { httpx.Error(w, 400, err.Error()); return }
+	httpx.WriteJSON(w, 201, vehicle)
+}
+func (h *Handler) ListVehicles(w http.ResponseWriter, r *http.Request) {
+	userID, ok := httpctx.UserID(r.Context()); if !ok { httpx.Error(w, 401, "unauthorized"); return }
+	vehicles, err := h.svc.ListVehicles(r.Context(), userID); if err != nil { httpx.Error(w, 404, "rider profile not found"); return }
+	httpx.WriteJSON(w, 200, vehicles)
+}
+func (h *Handler) SetActiveVehicle(w http.ResponseWriter, r *http.Request) {
+	userID, ok := httpctx.UserID(r.Context()); if !ok { httpx.Error(w, 401, "unauthorized"); return }
+	vehicleID, err := uuid.Parse(r.PathValue("vehicleID")); if err != nil { httpx.Error(w, 400, "invalid vehicle id"); return }
+	vehicle, err := h.svc.SetActiveVehicle(r.Context(), userID, vehicleID); if err != nil { httpx.Error(w, 409, err.Error()); return }
+	httpx.WriteJSON(w, 200, vehicle)
+}
