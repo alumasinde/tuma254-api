@@ -40,11 +40,32 @@ func (s *Service) ResendPhoneVerification(ctx context.Context,phone string)error
 
 func (s *Service) VerifyPhone(ctx context.Context,in dtos.VerifyPhoneRequest,ua,ip string)(dtos.AuthResponse,error){phone:=normalizePhone(in.Phone);if !validPhone(phone)||!validOTPCode(in.Code){return dtos.AuthResponse{},ErrInvalidOTP};result,err:=s.repo.VerifyOTP(ctx,phone,models.OTPPurposePhoneVerification,s.hashOTP(in.Code));if err!=nil{return dtos.AuthResponse{},err};if result.Expired{return dtos.AuthResponse{},ErrExpiredOTP};if result.Exhausted{return dtos.AuthResponse{},ErrOTPLocked};if !result.Verified{return dtos.AuthResponse{},ErrInvalidOTP};return s.issue(ctx,result.User,ua,ip)}
 
-func (s *Service) Login(ctx context.Context,in dtos.LoginRequest,ua,ip string)(dtos.AuthResponse,error){u,hash,err:=s.repo.FindByEmail(ctx,strings.ToLower(strings.TrimSpace(in.Email)));if err!=nil||!u.Active||u.PhoneVerifiedAt==nil||bcrypt.CompareHashAndPassword([]byte(hash),[]byte(in.Password))!=nil{return dtos.AuthResponse{},ErrInvalidCredentials};return s.issue(ctx,u,ua,ip)}
+func (s *Service) Login(ctx context.Context, in dtos.LoginRequest, ua, ip string) (dtos.AuthResponse, error) {
+	email := strings.ToLower(strings.TrimSpace(in.Email))
+	if !validEmail(email) || strings.TrimSpace(in.Password) == "" {
+		return dtos.AuthResponse{}, ErrInvalidCredentials
+	}
+
+	u, passwordHash, err := s.repo.FindByEmail(ctx, email)
+	if err != nil || !u.Active || u.PhoneVerifiedAt == nil {
+		return dtos.AuthResponse{}, ErrInvalidCredentials
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(in.Password)); err != nil {
+		return dtos.AuthResponse{}, ErrInvalidCredentials
+	}
+	return s.issue(ctx, u, ua, ip)
+}
 
 func (s *Service) Refresh(ctx context.Context,token,ua,ip string)(dtos.AuthResponse,error){token=strings.TrimSpace(token);if token==""{return dtos.AuthResponse{},ErrInvalidToken};now:=time.Now();replacement,replacementHash,err:=generateRefreshToken();if err!=nil{return dtos.AuthResponse{},err};currentHash:=sha256.Sum256([]byte(token));user,err:=s.repo.RotateSession(ctx,repositories.RotateSessionParams{CurrentTokenHash:currentHash[:],ReplacementTokenHash:replacementHash,ReplacementExpiresAt:now.Add(s.refreshTTL),UserAgent:ua,IPAddress:ip});if err!=nil{return dtos.AuthResponse{},ErrInvalidToken};access,err:=s.createAccessToken(user,now);if err!=nil{return dtos.AuthResponse{},err};return dtos.AuthResponse{AccessToken:access,RefreshToken:replacement,TokenType:"Bearer",ExpiresIn:int64(s.accessTTL.Seconds())},nil}
 
-func (s *Service) Logout(ctx context.Context,token string)error{h:=sha256.Sum256([]byte(token));return s.repo.RevokeSession(ctx,h[:])}
+func (s *Service) Logout(ctx context.Context, token string) error {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil
+	}
+	h := sha256.Sum256([]byte(token))
+	return s.repo.RevokeSession(ctx, h[:])
+}
 func (s *Service) Me(ctx context.Context,id string)(models.User,error){userID,err:=uuid.Parse(id);if err!=nil{return models.User{},ErrInvalidToken};return s.repo.FindByID(ctx,userID)}
 
 func (s *Service) sendPhoneVerification(ctx context.Context,user models.User)error{code,err:=generateOTP();if err!=nil{return err};params:=repositories.IssueOTPParams{UserID:user.ID,Phone:user.Phone,Purpose:models.OTPPurposePhoneVerification,CodeHash:s.hashOTP(code),ExpiresAt:time.Now().Add(s.otpPolicy.TTL),MaxAttempts:s.otpPolicy.MaxAttempts,Cooldown:s.otpPolicy.ResendCooldown,ResendWindow:s.otpPolicy.ResendWindow,MaxResends:s.otpPolicy.MaxResends};if err=s.repo.IssueOTP(ctx,params);err!=nil{return err};if s.sender==nil{_ = s.repo.RevokeActiveOTP(ctx,user.ID,models.OTPPurposePhoneVerification);return errors.New("sms sender is not configured")};if err=s.sender.Send(ctx,SMSMessage{To:user.Phone,Body:fmt.Sprintf("Your Tuma254 verification code is %s. It expires in %d minutes.",code,int(s.otpPolicy.TTL.Minutes()))});err!=nil{_ = s.repo.RevokeActiveOTP(ctx,user.ID,models.OTPPurposePhoneVerification);return ErrSMSDelivery};return nil}
