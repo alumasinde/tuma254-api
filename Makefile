@@ -1,3 +1,6 @@
+dev:
+	go run ./cmd/dev
+
 test:
 	go test ./...
 
