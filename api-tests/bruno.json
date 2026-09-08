@@ -1,1 +1,9 @@
-{"version":"1","name":"Tuma254 API Smoke Tests"}
+{
+  "version": "1",
+  "name": "Tuma254 API Smoke Tests",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
