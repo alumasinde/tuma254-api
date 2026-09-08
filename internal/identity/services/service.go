@@ -22,9 +22,9 @@ import (
 
 type OTPPolicy struct { TTL time.Duration; ResendCooldown time.Duration; ResendWindow time.Duration; MaxResends int; MaxAttempts int }
 
-type Service struct { repo repositories.Repository; sender SMSSender; secret []byte; otpSecret []byte; accessTTL time.Duration; refreshTTL time.Duration; otpPolicy OTPPolicy }
+type Service struct { repo repositories.Repository; sender SMSSender; secret []byte; otpSecret []byte; accessTTL time.Duration; refreshTTL time.Duration; otpPolicy OTPPolicy; loginLimiter LoginLimiter }
 
-func New(r repositories.Repository, sender SMSSender, jwtSecret, otpSecret string, accessTTL, refreshTTL time.Duration, policy OTPPolicy) *Service { return &Service{repo:r,sender:sender,secret:[]byte(jwtSecret),otpSecret:[]byte(otpSecret),accessTTL:accessTTL,refreshTTL:refreshTTL,otpPolicy:policy} }
+func New(r repositories.Repository, sender SMSSender, jwtSecret, otpSecret string, accessTTL, refreshTTL time.Duration, policy OTPPolicy) *Service { return &Service{repo:r,sender:sender,secret:[]byte(jwtSecret),otpSecret:[]byte(otpSecret),accessTTL:accessTTL,refreshTTL:refreshTTL,otpPolicy:policy} }\n\nfunc (s *Service) SetLoginLimiter(limiter LoginLimiter) { s.loginLimiter = limiter }
 
 func (s *Service) Register(ctx context.Context, in dtos.RegisterRequest)(dtos.RegisterResponse,error){
 	in.Email=strings.ToLower(strings.TrimSpace(in.Email));in.Phone=normalizePhone(in.Phone);in.FirstName=strings.TrimSpace(in.FirstName);in.LastName=strings.TrimSpace(in.LastName)
@@ -42,83 +42,28 @@ func (s *Service) VerifyPhone(ctx context.Context,in dtos.VerifyPhoneRequest,ua,
 
 func (s *Service) Login(ctx context.Context, in dtos.LoginRequest, ua, ip string) (dtos.AuthResponse, error) {
 	email := strings.ToLower(strings.TrimSpace(in.Email))
+	key := strings.ToLower(strings.TrimSpace(ip)) + "|" + email
+	if s.loginLimiter != nil && !s.loginLimiter.Allow(ctx, key) {
+		return dtos.AuthResponse{}, ErrLoginRateLimited
+	}
+
+	const dummyPasswordHash = "$2a$10$7EqJtq98hPqEX7fNZaFWoOeDtd4o3t4I8tY5TQ4mJx1wV3Z6uR6tS"
 	if !validEmail(email) || strings.TrimSpace(in.Password) == "" {
+		_ = bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte(in.Password))
+		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, key) }
 		return dtos.AuthResponse{}, ErrInvalidCredentials
 	}
 
 	u, passwordHash, err := s.repo.FindByEmail(ctx, email)
 	if err != nil || !u.Active || u.PhoneVerifiedAt == nil {
+		_ = bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte(in.Password))
+		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, key) }
 		return dtos.AuthResponse{}, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(in.Password)); err != nil {
+		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, key) }
 		return dtos.AuthResponse{}, ErrInvalidCredentials
 	}
+	if s.loginLimiter != nil { s.loginLimiter.Reset(ctx, key) }
 	return s.issue(ctx, u, ua, ip)
 }
-
-func (s *Service) Refresh(ctx context.Context,token,ua,ip string)(dtos.AuthResponse,error){token=strings.TrimSpace(token);if token==""{return dtos.AuthResponse{},ErrInvalidToken};now:=time.Now();replacement,replacementHash,err:=generateRefreshToken();if err!=nil{return dtos.AuthResponse{},err};currentHash:=sha256.Sum256([]byte(token));user,err:=s.repo.RotateSession(ctx,repositories.RotateSessionParams{CurrentTokenHash:currentHash[:],ReplacementTokenHash:replacementHash,ReplacementExpiresAt:now.Add(s.refreshTTL),UserAgent:ua,IPAddress:ip});if err!=nil{return dtos.AuthResponse{},ErrInvalidToken};access,err:=s.createAccessToken(user,now);if err!=nil{return dtos.AuthResponse{},err};return dtos.AuthResponse{AccessToken:access,RefreshToken:replacement,TokenType:"Bearer",ExpiresIn:int64(s.accessTTL.Seconds())},nil}
-
-func (s *Service) Logout(ctx context.Context, token string) error {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return nil
-	}
-	h := sha256.Sum256([]byte(token))
-	return s.repo.RevokeSession(ctx, h[:])
-}
-func (s *Service) Me(ctx context.Context,id string)(models.User,error){userID,err:=uuid.Parse(id);if err!=nil{return models.User{},ErrInvalidToken};return s.repo.FindByID(ctx,userID)}
-
-func (s *Service) sendPhoneVerification(ctx context.Context,user models.User)error{code,err:=generateOTP();if err!=nil{return err};params:=repositories.IssueOTPParams{UserID:user.ID,Phone:user.Phone,Purpose:models.OTPPurposePhoneVerification,CodeHash:s.hashOTP(code),ExpiresAt:time.Now().Add(s.otpPolicy.TTL),MaxAttempts:s.otpPolicy.MaxAttempts,Cooldown:s.otpPolicy.ResendCooldown,ResendWindow:s.otpPolicy.ResendWindow,MaxResends:s.otpPolicy.MaxResends};if err=s.repo.IssueOTP(ctx,params);err!=nil{return err};if s.sender==nil{_ = s.repo.RevokeActiveOTP(ctx,user.ID,models.OTPPurposePhoneVerification);return errors.New("sms sender is not configured")};if err=s.sender.Send(ctx,SMSMessage{To:user.Phone,Body:fmt.Sprintf("Your Tuma254 verification code is %s. It expires in %d minutes.",code,int(s.otpPolicy.TTL.Minutes()))});err!=nil{_ = s.repo.RevokeActiveOTP(ctx,user.ID,models.OTPPurposePhoneVerification);return ErrSMSDelivery};return nil}
-
-func (s *Service) hashOTP(code string)[]byte{h:=hmac.New(sha256.New,s.otpSecret);_,_=h.Write([]byte(code));return h.Sum(nil)}
-func generateOTP()(string,error){n,err:=rand.Int(rand.Reader,big.NewInt(1000000));if err!=nil{return "",err};return fmt.Sprintf("%06d",n.Int64()),nil}
-func validOTPCode(v string)bool{if len(v)!=6{return false};for _,c:=range v{if c<'0'||c>'9'{return false}};return true}
-func normalizePhone(v string) string {
-	v = strings.TrimSpace(v)
-	v = strings.NewReplacer(" ", "", "-", "", "(", "", ")", "").Replace(v)
-
-	switch {
-	case strings.HasPrefix(v, "+254"):
-		v = v[1:]
-	case strings.HasPrefix(v, "254"):
-		// already in Kenyan country-code format
-	case strings.HasPrefix(v, "0"):
-		v = "254" + v[1:]
-	case strings.HasPrefix(v, "7") || strings.HasPrefix(v, "1"):
-		v = "254" + v
-	default:
-		return ""
-	}
-
-	if len(v) != 12 || (v[3] != '7' && v[3] != '1') {
-		return ""
-	}
-	for _, digit := range v {
-		if digit < '0' || digit > '9' {
-			return ""
-		}
-	}
-	return "+" + v
-}
-func validPhone(v string) bool {
-	if len(v) != 13 || !strings.HasPrefix(v, "+254") {
-		return false
-	}
-	if v[4] != '7' && v[4] != '1' {
-		return false
-	}
-	for _, digit := range v[1:] {
-		if digit < '0' || digit > '9' {
-			return false
-		}
-	}
-	return true
-}
-func validEmail(v string)bool{if len(v)<5||len(v)>254{return false};at:=strings.LastIndex(v,"@");return at>0&&at<len(v)-1&&strings.Contains(v[at+1:],".")}
-
-func (s *Service) issue(ctx context.Context,user models.User,userAgent,ip string)(dtos.AuthResponse,error){now:=time.Now();access,err:=s.createAccessToken(user,now);if err!=nil{return dtos.AuthResponse{},err};refresh,refreshHash,err:=generateRefreshToken();if err!=nil{return dtos.AuthResponse{},err};if err=s.repo.CreateSession(ctx,repositories.CreateSessionParams{UserID:user.ID,TokenHash:refreshHash,ExpiresAt:now.Add(s.refreshTTL),UserAgent:userAgent,IPAddress:ip});err!=nil{return dtos.AuthResponse{},err};return dtos.AuthResponse{AccessToken:access,RefreshToken:refresh,TokenType:"Bearer",ExpiresIn:int64(s.accessTTL.Seconds())},nil}
-
-func (s *Service) createAccessToken(user models.User,now time.Time)(string,error){claims:=jwt.MapClaims{"sub":user.ID.String(),"roles":user.Roles,"iat":now.Unix(),"exp":now.Add(s.accessTTL).Unix(),"iss":"tuma254"};return jwt.NewWithClaims(jwt.SigningMethodHS256,claims).SignedString(s.secret)}
-func generateRefreshToken()(string,[]byte,error){raw:=make([]byte,48);if _,err:=rand.Read(raw);err!=nil{return "",nil,err};token:=base64.RawURLEncoding.EncodeToString(raw);hash:=sha256.Sum256([]byte(token));return token,hash[:],nil}
-
-func (s *Service) ParseAccess(raw string)(string,[]string,error){p,err:=jwt.Parse(raw,func(t *jwt.Token)(any,error){if t.Method.Alg()!=jwt.SigningMethodHS256.Alg(){return nil,ErrInvalidToken};return s.secret,nil},jwt.WithIssuer("tuma254"));if err!=nil||!p.Valid{return "",nil,ErrInvalidToken};c,ok:=p.Claims.(jwt.MapClaims);if !ok{return "",nil,ErrInvalidToken};id,_:=c["sub"].(string);if _,err:=uuid.Parse(id);err!=nil{return "",nil,ErrInvalidToken};roles:=[]string{};if xs,ok:=c["roles"].([]any);ok{for _,x:=range xs{if v,ok:=x.(string);ok{roles=append(roles,v)}}};return id,roles,nil}
