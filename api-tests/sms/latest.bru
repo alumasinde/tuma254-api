@@ -1,0 +1,25 @@
+meta {
+  name: Latest SMS
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{smsSinkUrl}}/messages/latest
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{smsSinkToken}}
+}
+
+tests {
+  test("OTP message is available", function() {
+    expect(res.status).to.equal(200);
+  });
+  if (res.status === 200) {
+    var match = res.body.body.match(/([0-9]{6})/);
+    if (match) bru.setEnvVar("otpCode", match[1]);
+  }
+}
