@@ -1,45 +1,44 @@
 package handlers
 
 import (
-	"encoding/json"
-	"errors"
-	"io"
-	"net"
+		"errors"
+		"net"
 	"net/http"
 	"strings"
 
 	"github.com/alumasinde/tuma254-api/internal/identity/dtos"
 	"github.com/alumasinde/tuma254-api/internal/identity/repositories"
 	"github.com/alumasinde/tuma254-api/internal/identity/services"
+	"github.com/alumasinde/tuma254-api/internal/platform/httpx"
 )
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var in dtos.RegisterRequest
-	if !decode(w, r, &in) { return }
+	if err := httpx.DecodeJSON(w, r, &in); err != nil { httpx.Error(w, http.StatusBadRequest, "invalid request"); return }
 	out, err := h.svc.Register(r.Context(), in)
 	if err != nil {
 		status, message := identityErrorResponse(err)
 		http.Error(w, message, status)
 		return
 	}
-	write(w, http.StatusCreated, out)
+	httpx.WriteJSON(w, http.StatusCreated, out)
 }
 
 func (h *Handler) VerifyPhone(w http.ResponseWriter, r *http.Request) {
 	var in dtos.VerifyPhoneRequest
-	if !decode(w, r, &in) { return }
+	if err := httpx.DecodeJSON(w, r, &in); err != nil { httpx.Error(w, http.StatusBadRequest, "invalid request"); return }
 	out, err := h.svc.VerifyPhone(r.Context(), in, r.UserAgent(), clientIP(r))
 	if err != nil {
 		status, message := identityErrorResponse(err)
 		http.Error(w, message, status)
 		return
 	}
-	write(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) ResendPhoneVerification(w http.ResponseWriter, r *http.Request) {
 	var in dtos.ResendPhoneVerificationRequest
-	if !decode(w, r, &in) { return }
+	if err := httpx.DecodeJSON(w, r, &in); err != nil { httpx.Error(w, http.StatusBadRequest, "invalid request"); return }
 	err := h.svc.ResendPhoneVerification(r.Context(), in.Phone)
 	if errors.Is(err, repositories.ErrOTPCooldown) || errors.Is(err, repositories.ErrOTPRateLimited) {
 		http.Error(w, "verification code cannot be sent yet", http.StatusTooManyRequests)
@@ -54,42 +53,26 @@ func (h *Handler) ResendPhoneVerification(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var in dtos.LoginRequest
-	if !decode(w, r, &in) { return }
+	if err := httpx.DecodeJSON(w, r, &in); err != nil { httpx.Error(w, http.StatusBadRequest, "invalid request"); return }
 	out, err := h.svc.Login(r.Context(), in, r.UserAgent(), clientIP(r))
 	if err != nil { status, message := identityErrorResponse(err); http.Error(w, message, status); return }
-	write(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var in dtos.RefreshRequest
-	if !decode(w, r, &in) { return }
+	if err := httpx.DecodeJSON(w, r, &in); err != nil { httpx.Error(w, http.StatusBadRequest, "invalid request"); return }
 	if strings.TrimSpace(in.RefreshToken) == "" { http.Error(w, "invalid refresh token", http.StatusUnauthorized); return }
 	out, err := h.svc.Refresh(r.Context(), in.RefreshToken, r.UserAgent(), clientIP(r))
 	if err != nil { status, message := identityErrorResponse(err); http.Error(w, message, status); return }
-	write(w, http.StatusOK, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var in dtos.RefreshRequest
-	if !decode(w, r, &in) { return }
+	if err := httpx.DecodeJSON(w, r, &in); err != nil { httpx.Error(w, http.StatusBadRequest, "invalid request"); return }
 	_ = h.svc.Logout(r.Context(), in.RefreshToken)
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func decode(w http.ResponseWriter, r *http.Request, v any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	d := json.NewDecoder(r.Body)
-	d.DisallowUnknownFields()
-	if err := d.Decode(v); err != nil { http.Error(w, "invalid request", http.StatusBadRequest); return false }
-	var extra any
-	if err := d.Decode(&extra); !errors.Is(err, io.EOF) { http.Error(w, "invalid request", http.StatusBadRequest); return false }
-	return true
-}
-
-func write(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
 }
 
 func clientIP(r *http.Request) string {
@@ -112,6 +95,8 @@ func identityErrorResponse(err error) (int, string) {
 		return http.StatusGone, "verification code expired or locked"
 	case errors.Is(err, services.ErrAccountInactive), errors.Is(err, services.ErrPhoneNotVerified):
 		return http.StatusForbidden, "account is not allowed to authenticate"
+	case errors.Is(err, services.ErrLoginRateLimited):
+		return http.StatusTooManyRequests, "too many login attempts"
 	case errors.Is(err, services.ErrInvalidCredentials), errors.Is(err, services.ErrInvalidToken):
 		return http.StatusUnauthorized, "authentication failed"
 	case errors.Is(err, repositories.ErrOTPCooldown), errors.Is(err, repositories.ErrOTPRateLimited):
