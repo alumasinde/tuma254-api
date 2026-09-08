@@ -52,8 +52,47 @@ func (s *Service) sendPhoneVerification(ctx context.Context,user models.User)err
 func (s *Service) hashOTP(code string)[]byte{h:=hmac.New(sha256.New,s.otpSecret);_,_=h.Write([]byte(code));return h.Sum(nil)}
 func generateOTP()(string,error){n,err:=rand.Int(rand.Reader,big.NewInt(1000000));if err!=nil{return "",err};return fmt.Sprintf("%06d",n.Int64()),nil}
 func validOTPCode(v string)bool{if len(v)!=6{return false};for _,c:=range v{if c<'0'||c>'9'{return false}};return true}
-func normalizePhone(v string)string{return strings.ReplaceAll(strings.TrimSpace(v)," ","")}
-func validPhone(v string)bool{if len(v)<8||len(v)>16||!strings.HasPrefix(v,"+"){return false};for _,c:=range v[1:]{if c<'0'||c>'9'{return false}};return true}
+func normalizePhone(v string) string {
+	v = strings.TrimSpace(v)
+	v = strings.NewReplacer(" ", "", "-", "", "(", "", ")", "").Replace(v)
+
+	switch {
+	case strings.HasPrefix(v, "+254"):
+		v = v[1:]
+	case strings.HasPrefix(v, "254"):
+		// already in Kenyan country-code format
+	case strings.HasPrefix(v, "0"):
+		v = "254" + v[1:]
+	case strings.HasPrefix(v, "7") || strings.HasPrefix(v, "1"):
+		v = "254" + v
+	default:
+		return ""
+	}
+
+	if len(v) != 12 || (v[3] != '7' && v[3] != '1') {
+		return ""
+	}
+	for _, digit := range v {
+		if digit < '0' || digit > '9' {
+			return ""
+		}
+	}
+	return "+" + v
+}
+func validPhone(v string) bool {
+	if len(v) != 13 || !strings.HasPrefix(v, "+254") {
+		return false
+	}
+	if v[4] != '7' && v[4] != '1' {
+		return false
+	}
+	for _, digit := range v[1:] {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
+}
 func validEmail(v string)bool{if len(v)<5||len(v)>254{return false};at:=strings.LastIndex(v,"@");return at>0&&at<len(v)-1&&strings.Contains(v[at+1:],".")}
 
 func (s *Service) issue(ctx context.Context,user models.User,userAgent,ip string)(dtos.AuthResponse,error){now:=time.Now();access,err:=s.createAccessToken(user,now);if err!=nil{return dtos.AuthResponse{},err};refresh,refreshHash,err:=generateRefreshToken();if err!=nil{return dtos.AuthResponse{},err};if err=s.repo.CreateSession(ctx,repositories.CreateSessionParams{UserID:user.ID,TokenHash:refreshHash,ExpiresAt:now.Add(s.refreshTTL),UserAgent:userAgent,IPAddress:ip});err!=nil{return dtos.AuthResponse{},err};return dtos.AuthResponse{AccessToken:access,RefreshToken:refresh,TokenType:"Bearer",ExpiresIn:int64(s.accessTTL.Seconds())},nil}
@@ -62,19 +101,3 @@ func (s *Service) createAccessToken(user models.User,now time.Time)(string,error
 func generateRefreshToken()(string,[]byte,error){raw:=make([]byte,48);if _,err:=rand.Read(raw);err!=nil{return "",nil,err};token:=base64.RawURLEncoding.EncodeToString(raw);hash:=sha256.Sum256([]byte(token));return token,hash[:],nil}
 
 func (s *Service) ParseAccess(raw string)(string,[]string,error){p,err:=jwt.Parse(raw,func(t *jwt.Token)(any,error){if t.Method.Alg()!=jwt.SigningMethodHS256.Alg(){return nil,ErrInvalidToken};return s.secret,nil},jwt.WithIssuer("tuma254"));if err!=nil||!p.Valid{return "",nil,ErrInvalidToken};c,ok:=p.Claims.(jwt.MapClaims);if !ok{return "",nil,ErrInvalidToken};id,_:=c["sub"].(string);if _,err:=uuid.Parse(id);err!=nil{return "",nil,ErrInvalidToken};roles:=[]string{};if xs,ok:=c["roles"].([]any);ok{for _,x:=range xs{if v,ok:=x.(string);ok{roles=append(roles,v)}}};return id,roles,nil}
-
-
-func mapRegistrationError(err error) error {
-	if err == nil { return nil }
-	message := strings.ToLower(err.Error())
-	switch {
-	case strings.Contains(message, "users_email"):
-		return ErrEmailAlreadyRegistered
-	case strings.Contains(message, "users_phone"):
-		return ErrPhoneAlreadyRegistered
-	case strings.Contains(message, "duplicate key"):
-		return ErrInvalidRegistration
-	default:
-		return err
-	}
-}
