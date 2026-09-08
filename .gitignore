@@ -1,8 +1,3 @@
-.env
-.env.*
-!.env.example
-bin/
-tmp/
-coverage.out
-*.secret
-*.key
+
+# Bruno local runtime environment: may contain OTPs and session tokens
+environments/local.bru
