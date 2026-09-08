@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"regexp"
 	"strings"
@@ -54,6 +55,6 @@ func (s *Service) sendPhoneVerification(ctx context.Context, user models.User) e
 		ResendWindow: s.otpPolicy.ResendWindow,
 		MaxResends: s.otpPolicy.MaxResends,
 	}); err != nil { return err }
-	if err := s.sender.Send(ctx, user.Phone, code); err != nil { return ErrSMSDelivery }
+	if err := s.sender.Send(ctx, SMSMessage{To: user.Phone, Body: "Your Tuma254 verification code is " + code}); err != nil { return ErrSMSDelivery }
 	return nil
 }
