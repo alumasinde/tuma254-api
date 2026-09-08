@@ -13,23 +13,79 @@ import (
 var (
 	ErrOTPCooldown    = errors.New("otp resend cooldown")
 	ErrOTPRateLimited = errors.New("otp resend limit")
+	ErrAccountInactive = errors.New("account inactive")
 )
 
-type Repository interface {
-	CreateUser(context.Context, string, string, string, string, string) (models.User, error)
+type CreateUserParams struct {
+	Email string
+	Phone string
+	FirstName string
+	LastName string
+	PasswordHash string
+}
+
+type IssueOTPParams struct {
+	UserID uuid.UUID
+	Phone string
+	Purpose string
+	CodeHash []byte
+	ExpiresAt time.Time
+	MaxAttempts int
+	Cooldown time.Duration
+	ResendWindow time.Duration
+	MaxResends int
+}
+
+type CreateSessionParams struct {
+	UserID uuid.UUID
+	TokenHash []byte
+	ExpiresAt time.Time
+	UserAgent string
+	IPAddress string
+}
+
+type RotateSessionParams struct {
+	CurrentTokenHash []byte
+	ReplacementTokenHash []byte
+	ReplacementExpiresAt time.Time
+	UserAgent string
+	IPAddress string
+}
+
+type UsersRepository interface {
+	CreateUser(context.Context, CreateUserParams) (models.User, error)
 	FindByEmail(context.Context, string) (models.User, string, error)
 	FindByPhone(context.Context, string) (models.User, error)
 	FindByID(context.Context, uuid.UUID) (models.User, error)
+}
 
-	IssueOTP(context.Context, uuid.UUID, string, string, []byte, time.Time, int, time.Duration, time.Duration, int) error
+type RolesRepository interface {
+	FindRolesByUserID(context.Context, uuid.UUID) ([]string, error)
+}
+
+type OTPRepository interface {
+	IssueOTP(context.Context, IssueOTPParams) error
 	RevokeActiveOTP(context.Context, uuid.UUID, string) error
 	VerifyOTP(context.Context, string, string, []byte) (models.OTPVerifyResult, error)
+}
 
-	CreateSession(context.Context, uuid.UUID, []byte, time.Time, string, string) error
-	RotateSession(context.Context, []byte, []byte, time.Time, string, string) (models.User, error)
+type SessionsRepository interface {
+	CreateSession(context.Context, CreateSessionParams) error
+	RotateSession(context.Context, RotateSessionParams) (models.User, error)
 	RevokeSession(context.Context, []byte) error
 }
 
-type Postgres struct{ db *pgxpool.Pool }
+type Repository interface {
+	UsersRepository
+	RolesRepository
+	OTPRepository
+	SessionsRepository
+}
 
-func New(db *pgxpool.Pool) *Postgres { return &Postgres{db: db} }
+type Postgres struct {
+	db *pgxpool.Pool
+}
+
+func New(db *pgxpool.Pool) *Postgres {
+	return &Postgres{db: db}
+}
