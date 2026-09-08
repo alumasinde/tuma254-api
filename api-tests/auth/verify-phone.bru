@@ -1,0 +1,32 @@
+meta {
+  name: Verify Phone
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/phone/verify
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "phone": "{{testPhone}}",
+    "code": "{{otpCode}}"
+  }
+}
+
+tests {
+  test("phone verification succeeds", function() {
+    expect(res.status).to.equal(200);
+  });
+  if (res.status === 200) {
+    bru.setEnvVar("accessToken", res.body.accessToken);
+    bru.setEnvVar("refreshToken", res.body.refreshToken);
+  }
+}
