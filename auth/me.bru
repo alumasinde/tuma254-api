@@ -1,0 +1,21 @@
+meta {
+  name: Current User
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/me
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+tests {
+  test("authenticated user is returned", function() {
+    expect(res.status).to.equal(200);
+  });
+}
