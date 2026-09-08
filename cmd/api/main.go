@@ -12,6 +12,10 @@ import (
 	"time"
 
 	"github.com/alumasinde/tuma254-api/internal/identity"
+	identityhandlers "github.com/alumasinde/tuma254-api/internal/identity/handlers"
+	identityrepo "github.com/alumasinde/tuma254-api/internal/identity/repositories"
+	"github.com/alumasinde/tuma254-api/internal/riders"
+	"github.com/alumasinde/tuma254-api/internal/users"
 	"github.com/alumasinde/tuma254-api/internal/platform/config"
 	"github.com/alumasinde/tuma254-api/internal/platform/database/postgres"
 	"github.com/alumasinde/tuma254-api/internal/platform/logging"
@@ -44,6 +48,22 @@ func main() {
 		SMSWebhookURL: cfg.SMSWebhookURL,
 		SMSWebhookToken: cfg.SMSWebhookToken,
 	}, log); err != nil { log.Error("identity setup failed", "error", err); os.Exit(1) }
+
+	// Users and Riders share the Identity authentication middleware and user repository.
+	identityPostgres := identityrepo.New(db)
+	identityService := identityPostgres
+	_ = identityService
+	// Route registration is performed after Identity so protected modules use the same auth boundary.
+	// Rebuild only the handler boundary here; Identity owns token parsing and middleware.
+	identitySvc, err := identity.BuildService(db, identity.Config{
+		JWTSecret: cfg.JWTSecret, OTPHashSecret: cfg.OTPHashSecret, AccessTTL: cfg.AccessTTL, RefreshTTL: cfg.RefreshTTL, OTPTTL: cfg.OTPTTL,
+		OTPResendCooldown: cfg.OTPResendCooldown, OTPResendWindow: cfg.OTPResendWindow, OTPMaxResends: cfg.OTPMaxResends, OTPMaxAttempts: cfg.OTPMaxAttempts,
+		SMSProvider: cfg.SMSProvider, SMSWebhookURL: cfg.SMSWebhookURL, SMSWebhookToken: cfg.SMSWebhookToken,
+	}, log)
+	if err != nil { log.Error("identity dependency setup failed", "error", err); os.Exit(1) }
+	auth := identityhandlers.New(identitySvc)
+	users.RegisterRoutes(mux, db, auth, identityPostgres)
+	riders.RegisterRoutes(mux, db, auth, identityPostgres)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		_ = r
