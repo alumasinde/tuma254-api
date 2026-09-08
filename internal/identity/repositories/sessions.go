@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"errors"
 	"net"
 	"strings"
 
