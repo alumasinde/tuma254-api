@@ -15,4 +15,5 @@ var (
 	ErrAccountInactive = errors.New("account inactive")
 	ErrPhoneNotVerified = errors.New("phone not verified")
 	ErrSMSDelivery = errors.New("sms delivery failed")
-)
+	ErrLoginRateLimited = errors.New("too many login attempts")
+}
