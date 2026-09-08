@@ -10,11 +10,43 @@ import (
 )
 
 type Handler struct{ svc *services.Service }
-func New(svc *services.Service)*Handler{return &Handler{svc:svc}}
-func (h *Handler) Get(w http.ResponseWriter,r *http.Request){id,ok:=uuidFromContext(r);if !ok{http.Error(w,"unauthorized",401);return};p,err:=h.svc.Get(r.Context(),id);if err!=nil{http.Error(w,"profile not found",404);return};write(w,200,p)}
-func (h *Handler) Update(w http.ResponseWriter,r *http.Request){id,ok:=uuidFromContext(r);if !ok{http.Error(w,"unauthorized",401);return};var in struct{AvatarURL string `json:"avatar_url"`};if !decode(w,r,&in){return};p,err:=h.svc.Update(r.Context(),id,strings.TrimSpace(in.AvatarURL));if err!=nil{http.Error(w,"profile update failed",400);return};write(w,200,p)}
-type userIDKey struct{}
-func WithUserID(next http.Handler)http.Handler{return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){v:=r.Context().Value("tuma254.user_id");id,ok:=v.(string);if !ok{http.Error(w,"unauthorized",401);return};next.ServeHTTP(w,r.WithContext(r.Context()))})}
-func uuidFromContext(r *http.Request)(uuid.UUID,bool){v:=r.Context().Value("tuma254.user_id");s,ok:=v.(string);if !ok{return uuid.Nil,false};id,err:=uuid.Parse(s);return id,err==nil}
-func decode(w http.ResponseWriter,r *http.Request,dst any)bool{d:=json.NewDecoder(http.MaxBytesReader(w,r.Body,1<<20));d.DisallowUnknownFields();if err:=d.Decode(dst);err!=nil{http.Error(w,"invalid request",400);return false};return true}
-func write(w http.ResponseWriter,status int,v any){w.Header().Set("Content-Type","application/json; charset=utf-8");w.WriteHeader(status);_ = json.NewEncoder(w).Encode(v)}
+
+func New(svc *services.Service) *Handler { return &Handler{svc: svc} }
+
+func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidFromContext(r)
+	if !ok { http.Error(w, "unauthorized", http.StatusUnauthorized); return }
+	profile, err := h.svc.Get(r.Context(), id)
+	if err != nil { http.Error(w, "profile not found", http.StatusNotFound); return }
+	write(w, http.StatusOK, profile)
+}
+
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	id, ok := uuidFromContext(r)
+	if !ok { http.Error(w, "unauthorized", http.StatusUnauthorized); return }
+	var input struct{ AvatarURL string `json:"avatar_url"` }
+	if !decode(w, r, &input) { return }
+	profile, err := h.svc.Update(r.Context(), id, strings.TrimSpace(input.AvatarURL))
+	if err != nil { http.Error(w, "profile update failed", http.StatusBadRequest); return }
+	write(w, http.StatusOK, profile)
+}
+
+func uuidFromContext(r *http.Request) (uuid.UUID, bool) {
+	value, ok := r.Context().Value("tuma254.user_id").(string)
+	if !ok { return uuid.Nil, false }
+	id, err := uuid.Parse(value)
+	return id, err == nil
+}
+
+func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil { http.Error(w, "invalid request", http.StatusBadRequest); return false }
+	return true
+}
+
+func write(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
