@@ -24,7 +24,9 @@ type OTPPolicy struct { TTL time.Duration; ResendCooldown time.Duration; ResendW
 
 type Service struct { repo repositories.Repository; sender SMSSender; secret []byte; otpSecret []byte; accessTTL time.Duration; refreshTTL time.Duration; otpPolicy OTPPolicy; loginLimiter LoginLimiter }
 
-func New(r repositories.Repository, sender SMSSender, jwtSecret, otpSecret string, accessTTL, refreshTTL time.Duration, policy OTPPolicy) *Service { return &Service{repo:r,sender:sender,secret:[]byte(jwtSecret),otpSecret:[]byte(otpSecret),accessTTL:accessTTL,refreshTTL:refreshTTL,otpPolicy:policy} }\n\nfunc (s *Service) SetLoginLimiter(limiter LoginLimiter) { s.loginLimiter = limiter }
+func New(r repositories.Repository, sender SMSSender, jwtSecret, otpSecret string, accessTTL, refreshTTL time.Duration, policy OTPPolicy) *Service { return &Service{repo:r,sender:sender,secret:[]byte(jwtSecret),otpSecret:[]byte(otpSecret),accessTTL:accessTTL,refreshTTL:refreshTTL,otpPolicy:policy} }
+
+func (s *Service) SetLoginLimiter(limiter LoginLimiter) { s.loginLimiter = limiter }
 
 func (s *Service) Register(ctx context.Context, in dtos.RegisterRequest)(dtos.RegisterResponse,error){
 	in.Email=strings.ToLower(strings.TrimSpace(in.Email));in.Phone=normalizePhone(in.Phone);in.FirstName=strings.TrimSpace(in.FirstName);in.LastName=strings.TrimSpace(in.LastName)
