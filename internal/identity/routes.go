@@ -12,18 +12,18 @@ import (
 )
 
 type Config struct {
-	JWTSecret            string
-	OTPHashSecret        string
-	AccessTTL            time.Duration
-	RefreshTTL           time.Duration
-	OTPTTL               time.Duration
-	OTPResendCooldown    time.Duration
-	OTPResendWindow      time.Duration
-	OTPMaxResends        int
-	OTPMaxAttempts       int
-	SMSProvider          string
-	SMSWebhookURL        string
-	SMSWebhookToken      string
+	JWTSecret         string
+	OTPHashSecret     string
+	AccessTTL         time.Duration
+	RefreshTTL        time.Duration
+	OTPTTL            time.Duration
+	OTPResendCooldown time.Duration
+	OTPResendWindow   time.Duration
+	OTPMaxResends     int
+	OTPMaxAttempts    int
+	SMSProvider       string
+	SMSWebhookURL     string
+	SMSWebhookToken   string
 }
 
 func buildSMSSender(cfg Config, log *slog.Logger) (services.SMSSender, error) {
@@ -35,11 +35,11 @@ func buildSMSSender(cfg Config, log *slog.Logger) (services.SMSSender, error) {
 
 func BuildService(db *pgxpool.Pool, cfg Config, log *slog.Logger) (*services.Service, error) {
 	policy := services.OTPPolicy{
-		TTL:               cfg.OTPTTL,
-		ResendCooldown:    cfg.OTPResendCooldown,
-		ResendWindow:      cfg.OTPResendWindow,
-		MaxResends:        cfg.OTPMaxResends,
-		MaxAttempts:       cfg.OTPMaxAttempts,
+		TTL:            cfg.OTPTTL,
+		ResendCooldown: cfg.OTPResendCooldown,
+		ResendWindow:   cfg.OTPResendWindow,
+		MaxResends:     cfg.OTPMaxResends,
+		MaxAttempts:    cfg.OTPMaxAttempts,
 	}
 	sender, err := buildSMSSender(cfg, log)
 	if err != nil {
