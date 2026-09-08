@@ -18,7 +18,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) { return }
 	out, err := h.svc.Register(r.Context(), in)
 	if err != nil {
-		http.Error(w, "registration failed", http.StatusBadRequest)
+		status, message := identityErrorResponse(err)
+		http.Error(w, message, status)
 		return
 	}
 	write(w, http.StatusCreated, out)
@@ -29,10 +30,8 @@ func (h *Handler) VerifyPhone(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) { return }
 	out, err := h.svc.VerifyPhone(r.Context(), in, r.UserAgent(), clientIP(r))
 	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, services.ErrInvalidOTP) { status = http.StatusUnauthorized }
-		if errors.Is(err, services.ErrExpiredOTP) || errors.Is(err, services.ErrOTPLocked) { status = http.StatusGone }
-		http.Error(w, "phone verification failed", status)
+		status, message := identityErrorResponse(err)
+		http.Error(w, message, status)
 		return
 	}
 	write(w, http.StatusOK, out)
@@ -57,7 +56,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var in dtos.LoginRequest
 	if !decode(w, r, &in) { return }
 	out, err := h.svc.Login(r.Context(), in, r.UserAgent(), clientIP(r))
-	if err != nil { http.Error(w, "invalid credentials", http.StatusUnauthorized); return }
+	if err != nil { status, message := identityErrorResponse(err); http.Error(w, message, status); return }
 	write(w, http.StatusOK, out)
 }
 
@@ -66,7 +65,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) { return }
 	if strings.TrimSpace(in.RefreshToken) == "" { http.Error(w, "invalid refresh token", http.StatusUnauthorized); return }
 	out, err := h.svc.Refresh(r.Context(), in.RefreshToken, r.UserAgent(), clientIP(r))
-	if err != nil { http.Error(w, "invalid refresh token", http.StatusUnauthorized); return }
+	if err != nil { status, message := identityErrorResponse(err); http.Error(w, message, status); return }
 	write(w, http.StatusOK, out)
 }
 
@@ -97,4 +96,27 @@ func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil { return host }
 	return r.RemoteAddr
+}
+
+func identityErrorResponse(err error) (int, string) {
+	switch {
+	case errors.Is(err, services.ErrEmailAlreadyRegistered):
+		return http.StatusConflict, "email already registered"
+	case errors.Is(err, services.ErrPhoneAlreadyRegistered):
+		return http.StatusConflict, "phone already registered"
+	case errors.Is(err, services.ErrInvalidRegistration), errors.Is(err, services.ErrInvalidPhone):
+		return http.StatusBadRequest, "invalid registration data"
+	case errors.Is(err, services.ErrInvalidOTP):
+		return http.StatusUnauthorized, "invalid verification code"
+	case errors.Is(err, services.ErrExpiredOTP), errors.Is(err, services.ErrOTPLocked):
+		return http.StatusGone, "verification code expired or locked"
+	case errors.Is(err, services.ErrAccountInactive), errors.Is(err, services.ErrPhoneNotVerified):
+		return http.StatusForbidden, "account is not allowed to authenticate"
+	case errors.Is(err, services.ErrInvalidCredentials), errors.Is(err, services.ErrInvalidToken):
+		return http.StatusUnauthorized, "authentication failed"
+	case errors.Is(err, repositories.ErrOTPCooldown), errors.Is(err, repositories.ErrOTPRateLimited):
+		return http.StatusTooManyRequests, "verification code cannot be sent yet"
+	default:
+		return http.StatusInternalServerError, "identity request failed"
+	}
 }
