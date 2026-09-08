@@ -1,0 +1,27 @@
+meta {
+  name: Logged Out Refresh Rejected
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/refresh
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "refreshToken": "{{refreshToken}}"
+  }
+}
+
+tests {
+  test("logged out token is rejected", function() {
+    expect(res.status).to.equal(401);
+  });
+}
