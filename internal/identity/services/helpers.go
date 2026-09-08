@@ -20,19 +20,20 @@ var (
 )
 
 func normalizePhone(phone string) string {
-	phone = strings.ReplaceAll(strings.TrimSpace(phone), " ", "")
+	value := strings.ReplaceAll(strings.TrimSpace(phone), " ", "")
 	switch {
-	case strings.HasPrefix(phone, "07") || strings.HasPrefix(phone, "01"):
-		return "+254" + phone[1:]
-	case strings.HasPrefix(phone, "254"):
-		return "+" + phone
-	default:
-		return phone
+	case strings.HasPrefix(value, "07") || strings.HasPrefix(value, "01"):
+		value = "+254" + value[1:]
+	case strings.HasPrefix(value, "254"):
+		value = "+" + value
+	case len(value) == 9 && (strings.HasPrefix(value, "7") || strings.HasPrefix(value, "1")):
+		value = "+254" + value
 	}
+	if !phonePattern.MatchString(value) { return "" }
+	return value
 }
-
 func validEmail(email string) bool { return emailPattern.MatchString(strings.TrimSpace(email)) }
-func validPhone(phone string) bool { return phonePattern.MatchString(phone) }
+func validPhone(phone string) bool { return phonePattern.MatchString(strings.TrimSpace(phone)) }
 func validOTPCode(code string) bool { return otpPattern.MatchString(strings.TrimSpace(code)) }
 
 func generateOTP() (string, error) {
@@ -44,17 +45,14 @@ func generateOTP() (string, error) {
 func (s *Service) sendPhoneVerification(ctx context.Context, user models.User) error {
 	code, err := generateOTP()
 	if err != nil { return err }
-	if err := s.repo.IssueOTP(ctx, repositories.IssueOTPParams{
-		UserID: user.ID,
-		Phone: user.Phone,
-		Purpose: models.OTPPurposePhoneVerification,
-		CodeHash: s.hashOTP(code),
-		ExpiresAt: time.Now().Add(s.otpPolicy.TTL),
-		MaxAttempts: s.otpPolicy.MaxAttempts,
-		Cooldown: s.otpPolicy.ResendCooldown,
-		ResendWindow: s.otpPolicy.ResendWindow,
-		MaxResends: s.otpPolicy.MaxResends,
-	}); err != nil { return err }
-	if err := s.sender.Send(ctx, SMSMessage{To: user.Phone, Body: "Your Tuma254 verification code is " + code}); err != nil { return ErrSMSDelivery }
+	err = s.repo.IssueOTP(ctx, repositories.IssueOTPParams{
+		UserID:user.ID, Phone:user.Phone, Purpose:models.OTPPurposePhoneVerification,
+		CodeHash:s.hashOTP(code), ExpiresAt:time.Now().Add(s.otpPolicy.TTL),
+		MaxAttempts:s.otpPolicy.MaxAttempts, Cooldown:s.otpPolicy.ResendCooldown,
+		ResendWindow:s.otpPolicy.ResendWindow, MaxResends:s.otpPolicy.MaxResends,
+	})
+	if err != nil { return err }
+	if s.sender == nil { return ErrSMSDelivery }
+	if err := s.sender.Send(ctx, SMSMessage{To:user.Phone, Body:"Your Tuma254 verification code is "+code}); err != nil { return ErrSMSDelivery }
 	return nil
 }
