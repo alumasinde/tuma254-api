@@ -41,20 +41,12 @@ func main() {
 
 	mux := http.NewServeMux()
 	identityConfig := identity.Config{
-		JWTSecret:         cfg.JWTSecret,
-		OTPHashSecret:     cfg.OTPHashSecret,
-		AccessTTL:         cfg.AccessTTL,
-		RefreshTTL:        cfg.RefreshTTL,
-		OTPTTL:            cfg.OTPTTL,
-		OTPResendCooldown: cfg.OTPResendCooldown,
-		OTPResendWindow:   cfg.OTPResendWindow,
-		OTPMaxResends:     cfg.OTPMaxResends,
-		OTPMaxAttempts:    cfg.OTPMaxAttempts,
-		SMSProvider:       cfg.SMSProvider,
-		SMSWebhookURL:     cfg.SMSWebhookURL,
-		SMSWebhookToken:   cfg.SMSWebhookToken,
+		JWTSecret: cfg.JWTSecret, OTPHashSecret: cfg.OTPHashSecret,
+		AccessTTL: cfg.AccessTTL, RefreshTTL: cfg.RefreshTTL, OTPTTL: cfg.OTPTTL,
+		OTPResendCooldown: cfg.OTPResendCooldown, OTPResendWindow: cfg.OTPResendWindow,
+		OTPMaxResends: cfg.OTPMaxResends, OTPMaxAttempts: cfg.OTPMaxAttempts,
+		SMSProvider: cfg.SMSProvider, SMSWebhookURL: cfg.SMSWebhookURL, SMSWebhookToken: cfg.SMSWebhookToken,
 	}
-
 	identityService, err := identity.BuildService(db, identityConfig, log)
 	if err != nil {
 		log.Error("identity setup failed", "error", err)
@@ -72,7 +64,7 @@ func main() {
 
 	identityRepository := identityrepo.New(db)
 	users.RegisterRoutes(mux, db, identityHandler, identityRepository)
-	riders.RegisterRoutes(mux, db, identityHandler, identityRepository)
+	riders.RegisterRoutes(mux, db, identityHandler, identityRepository, identityRepository)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		_ = r
@@ -90,32 +82,17 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
 	})
 
-	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
-
+	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
-
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	select {
 	case <-stop:
 	case err := <-errCh:
-		if !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server failed", "error", err)
-			os.Exit(1)
-		}
+		if !errors.Is(err, http.ErrServerClosed) { log.Error("server failed", "error", err); os.Exit(1) }
 	}
-
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer shutdownCancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("shutdown failed", "error", err)
-	}
+	if err := srv.Shutdown(shutdownCtx); err != nil { log.Error("shutdown failed", "error", err) }
 }
