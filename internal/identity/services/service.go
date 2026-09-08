@@ -111,4 +111,3 @@ func (s *Service) Me(ctx context.Context,userID string)(models.User,error){id,er
 func (s *Service) hashOTP(code string) []byte { mac:=hmac.New(sha256.New,s.otpSecret);mac.Write([]byte(code));return mac.Sum(nil) }
 func generateRefreshToken()(string,[]byte,error){raw:=make([]byte,32);if _,err:=rand.Read(raw);err!=nil{return "",nil,err};token:=base64.RawURLEncoding.EncodeToString(raw);return token,hashRefreshToken(token),nil}
 func hashRefreshToken(token string) []byte { sum:=sha256.Sum256([]byte(token));return sum[:] }
-func mapRegistrationError(err error) error { message:=strings.ToLower(err.Error());switch{case strings.Contains(message,"users_email")||strings.Contains(message,"email"):return ErrEmailAlreadyRegistered;case strings.Contains(message,"users_phone")||strings.Contains(message,"phone"):return ErrPhoneAlreadyRegistered;default:return fmt.Errorf("create user: %w",err)} }
