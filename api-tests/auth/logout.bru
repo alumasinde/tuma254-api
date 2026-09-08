@@ -1,0 +1,27 @@
+meta {
+  name: Logout
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/logout
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "refreshToken": "{{refreshToken}}"
+  }
+}
+
+tests {
+  test("logout succeeds", function() {
+    expect(res.status).to.equal(204);
+  });
+}
