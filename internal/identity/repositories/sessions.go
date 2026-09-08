@@ -12,7 +12,7 @@ import (
 func (r *Postgres) CreateSession(ctx context.Context,p CreateSessionParams)error{_,err:=r.db.Exec(ctx,"INSERT INTO refresh_sessions(user_id,token_hash,expires_at,user_agent,ip_address) VALUES($1,$2,$3,$4,$5)",p.UserID,p.TokenHash,p.ExpiresAt,p.UserAgent,parseIPAddress(p.IPAddress));return err}
 
 func (r *Postgres) RotateSession(ctx context.Context,p RotateSessionParams)(models.User,error){
-	tx,err:=r.db.Begin(ctx);if err!=nil{return models.User{},err};defer tx.Rollback()
+	tx,err:=r.db.Begin(ctx);if err!=nil{return models.User{},err};defer tx.Rollback(ctx)
 	var userID uuid.UUID
 	if err=tx.QueryRow(ctx,"UPDATE refresh_sessions SET revoked_at=now() WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now() RETURNING user_id",p.CurrentTokenHash).Scan(&userID);err!=nil{return models.User{},err}
 	var u models.User
