@@ -47,7 +47,7 @@ func (s *Service) Login(ctx context.Context, in dtos.LoginRequest, ua, ip string
 		return dtos.AuthResponse{}, ErrLoginRateLimited
 	}
 
-	const dummyPasswordHash = "$2a$10$7EqJtq98hPqEX7fNZaFWoOeDtd4o3t4I8tY5TQ4mJx1wV3Z6uR6tS"
+	const dummyPasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
 	if !validEmail(email) || strings.TrimSpace(in.Password) == "" {
 		_ = bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte(in.Password))
 		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, key) }
