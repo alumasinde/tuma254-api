@@ -12,43 +12,55 @@ import (
 )
 
 type Config struct {
-	JWTSecret string
-	OTPHashSecret string
-	AccessTTL time.Duration
-	RefreshTTL time.Duration
-	OTPTTL time.Duration
-	OTPResendCooldown time.Duration
-	OTPResendWindow time.Duration
-	OTPMaxResends int
-	OTPMaxAttempts int
-	SMSProvider string
-	SMSWebhookURL string
-	SMSWebhookToken string
+	JWTSecret            string
+	OTPHashSecret        string
+	AccessTTL            time.Duration
+	RefreshTTL           time.Duration
+	OTPTTL               time.Duration
+	OTPResendCooldown    time.Duration
+	OTPResendWindow      time.Duration
+	OTPMaxResends        int
+	OTPMaxAttempts       int
+	SMSProvider          string
+	SMSWebhookURL        string
+	SMSWebhookToken      string
 }
 
 func buildSMSSender(cfg Config, log *slog.Logger) (services.SMSSender, error) {
-	if cfg.SMSProvider == "webhook" { return services.NewWebhookSMSSender(cfg.SMSWebhookURL, cfg.SMSWebhookToken) }
+	if cfg.SMSProvider == "webhook" {
+		return services.NewWebhookSMSSender(cfg.SMSWebhookURL, cfg.SMSWebhookToken)
+	}
 	return services.NewLoggingSMSSender(log), nil
 }
 
 func BuildService(db *pgxpool.Pool, cfg Config, log *slog.Logger) (*services.Service, error) {
 	policy := services.OTPPolicy{
-		TTL: cfg.OTPTTL,
-		ResendCooldown: cfg.OTPResendCooldown,
-		ResendWindow: cfg.OTPResendWindow,
-		MaxResends: cfg.OTPMaxResends,
-		MaxAttempts: cfg.OTPMaxAttempts,
+		TTL:               cfg.OTPTTL,
+		ResendCooldown:    cfg.OTPResendCooldown,
+		ResendWindow:      cfg.OTPResendWindow,
+		MaxResends:        cfg.OTPMaxResends,
+		MaxAttempts:       cfg.OTPMaxAttempts,
 	}
 	sender, err := buildSMSSender(cfg, log)
-	if err != nil { return err }
-	svc := services.New(repositories.New(db), sender, cfg.JWTSecret, cfg.OTPHashSecret, cfg.AccessTTL, cfg.RefreshTTL, policy)
-	return svc, nil
+	if err != nil {
+		return nil, err
+	}
+	return services.New(
+		repositories.New(db),
+		sender,
+		cfg.JWTSecret,
+		cfg.OTPHashSecret,
+		cfg.AccessTTL,
+		cfg.RefreshTTL,
+		policy,
+	), nil
 }
-
 
 func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.Logger) error {
 	svc, err := BuildService(db, cfg, log)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	h := handlers.New(svc)
 	mux.HandleFunc("POST /api/v1/auth/register", h.Register)
 	mux.HandleFunc("POST /api/v1/auth/phone/verify", h.VerifyPhone)
