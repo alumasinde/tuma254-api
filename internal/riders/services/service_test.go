@@ -1,0 +1,4 @@
+package services
+import("testing";"github.com/alumasinde/tuma254-api/internal/riders/models")
+func TestAvailabilityTransitions(t *testing.T){cases:=[]struct{from,to models.Availability;want bool}{{models.AvailabilityOffline,models.AvailabilityAvailable,true},{models.AvailabilityAvailable,models.AvailabilityBusy,true},{models.AvailabilityBusy,models.AvailabilityAvailable,true},{models.AvailabilityAvailable,models.AvailabilityOffline,true},{models.AvailabilityOffline,models.AvailabilityBusy,false}};for _,tc:=range cases{if got:=validAvailabilityTransition(tc.from,tc.to);got!=tc.want{t.Fatalf("%s -> %s got %v",tc.from,tc.to,got)}}}
+func TestVehicleValidation(t *testing.T){if !validVehicleType("motorcycle"){t.Fatal("motorcycle should be valid")};if validVehicleType("plane"){t.Fatal("plane should be invalid")};if got:=normalizeRegistration(" kda 123a ");got!="KDA123A"{t.Fatalf("got %q",got)}}
