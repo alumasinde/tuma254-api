@@ -25,6 +25,8 @@ type Config struct {
 	OTPResendWindow time.Duration
 	OTPMaxResends int
 	OTPMaxAttempts int
+	LoginAttemptWindow time.Duration
+	LoginMaxAttempts int
 	SMSProvider string
 	SMSWebhookURL string
 	SMSWebhookToken string
@@ -54,6 +56,8 @@ func Load() (Config, error) {
 	if cfg.OTPResendWindow, err = duration("OTP_RESEND_WINDOW", time.Hour); err != nil { return Config{}, err }
 	if cfg.OTPMaxResends, err = positiveInt("OTP_MAX_RESENDS", 5); err != nil { return Config{}, err }
 	if cfg.OTPMaxAttempts, err = positiveInt("OTP_MAX_ATTEMPTS", 5); err != nil { return Config{}, err }
+	if cfg.LoginAttemptWindow, err = duration("LOGIN_ATTEMPT_WINDOW", 15*time.Minute); err != nil { return Config{}, err }
+	if cfg.LoginMaxAttempts, err = positiveInt("LOGIN_MAX_ATTEMPTS", 10); err != nil { return Config{}, err }
 	if cfg.AppEnv != "development" && cfg.AppEnv != "test" && cfg.AppEnv != "production" { return Config{}, fmt.Errorf("invalid APP_ENV") }
 	if cfg.SMSProvider != "log" && cfg.SMSProvider != "webhook" { return Config{}, fmt.Errorf("invalid SMS_PROVIDER") }
 	if cfg.AppEnv == "production" && cfg.SMSProvider != "webhook" { return Config{}, errors.New("production requires SMS_PROVIDER=webhook or another production sender implementation") }
