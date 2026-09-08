@@ -5,7 +5,6 @@ import (
 
 	"github.com/alumasinde/tuma254-api/internal/identity/models"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 func (r *Postgres) CreateUser(ctx context.Context, params CreateUserParams) (models.User, error) {
