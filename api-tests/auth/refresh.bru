@@ -1,0 +1,32 @@
+meta {
+  name: Refresh Session
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/refresh
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "refreshToken": "{{refreshToken}}"
+  }
+}
+
+tests {
+  test("refresh succeeds", function() {
+    expect(res.status).to.equal(200);
+  });
+  if (res.status === 200) {
+    bru.setEnvVar("oldRefreshToken", bru.getEnvVar("refreshToken"));
+    bru.setEnvVar("accessToken", res.body.accessToken);
+    bru.setEnvVar("refreshToken", res.body.refreshToken);
+  }
+}
