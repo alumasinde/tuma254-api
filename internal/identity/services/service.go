@@ -42,28 +42,29 @@ func (s *Service) VerifyPhone(ctx context.Context,in dtos.VerifyPhoneRequest,ua,
 
 func (s *Service) Login(ctx context.Context, in dtos.LoginRequest, ua, ip string) (dtos.AuthResponse, error) {
 	email := strings.ToLower(strings.TrimSpace(in.Email))
-	key := strings.ToLower(strings.TrimSpace(ip)) + "|" + email
-	if s.loginLimiter != nil && !s.loginLimiter.Allow(ctx, key) {
+	accountKey := "account:" + email
+	ipKey := "ip:" + strings.TrimSpace(ip)
+	if s.loginLimiter != nil && (!s.loginLimiter.Allow(ctx, accountKey) || !s.loginLimiter.Allow(ctx, ipKey)) {
 		return dtos.AuthResponse{}, ErrLoginRateLimited
 	}
 
 	const dummyPasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
 	if !validEmail(email) || strings.TrimSpace(in.Password) == "" {
 		_ = bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte(in.Password))
-		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, key) }
+		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, accountKey); s.loginLimiter.RecordFailure(ctx, ipKey) }
 		return dtos.AuthResponse{}, ErrInvalidCredentials
 	}
 
 	u, passwordHash, err := s.repo.FindByEmail(ctx, email)
 	if err != nil || !u.Active || u.PhoneVerifiedAt == nil {
 		_ = bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte(in.Password))
-		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, key) }
+		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, accountKey); s.loginLimiter.RecordFailure(ctx, ipKey) }
 		return dtos.AuthResponse{}, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(in.Password)); err != nil {
-		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, key) }
+		if s.loginLimiter != nil { s.loginLimiter.RecordFailure(ctx, accountKey); s.loginLimiter.RecordFailure(ctx, ipKey) }
 		return dtos.AuthResponse{}, ErrInvalidCredentials
 	}
-	if s.loginLimiter != nil { s.loginLimiter.Reset(ctx, key) }
+	if s.loginLimiter != nil { s.loginLimiter.Reset(ctx, accountKey); s.loginLimiter.Reset(ctx, ipKey) }
 	return s.issue(ctx, u, ua, ip)
 }
