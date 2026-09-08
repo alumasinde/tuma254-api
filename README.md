@@ -14,10 +14,31 @@ Tuma254 is being rebuilt on PostgreSQL from the proven behavioural contract of t
 
 ## Local development
 
-1. Copy `.env.example` to `.env`.
-2. Start PostgreSQL with `docker compose up -d`.
-3. Run `go run ./cmd/migrate up`.
-4. Run `go run ./cmd/api`.
+### One-command development engine
+
+Copy `.env.example` to `.env` once, then start the complete local stack with:
+
+```
+go run ./cmd/dev
+```
+
+The development engine automatically:
+
+1. starts PostgreSQL through Docker Compose;
+2. waits for PostgreSQL readiness;
+3. runs pending migrations;
+4. starts the protected local SMS sink;
+5. configures the API's local SMS webhook integration;
+6. generates `api-tests/environments/local.bru` for Bruno;
+7. starts the API.
+
+You no longer need separate PowerShell windows for PostgreSQL, migrations, SMS sink, and API.
+
+Press `Ctrl+C` to stop the API and local SMS sink. PostgreSQL remains running so database data is preserved.
+
+### Manual development
+
+The individual commands remain available for debugging and production-like troubleshooting.
 
 Health: `GET /health`  
 Readiness: `GET /ready`
