@@ -20,16 +20,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrInvalidToken = errors.New("invalid token")
-	ErrInvalidOTP = errors.New("invalid verification code")
-	ErrExpiredOTP = errors.New("verification code expired")
-	ErrOTPLocked = errors.New("verification code locked")
-	ErrInvalidRegistration = errors.New("invalid registration data")
-	ErrInvalidPhone = errors.New("invalid phone")
-)
-
 type OTPPolicy struct { TTL time.Duration; ResendCooldown time.Duration; ResendWindow time.Duration; MaxResends int; MaxAttempts int }
 
 type Service struct { repo repositories.Repository; sender SMSSender; secret []byte; otpSecret []byte; accessTTL time.Duration; refreshTTL time.Duration; otpPolicy OTPPolicy }
@@ -41,7 +31,7 @@ func (s *Service) Register(ctx context.Context, in dtos.RegisterRequest)(dtos.Re
 	if !validEmail(in.Email)||!validPhone(in.Phone)||len(in.FirstName)==0||len(in.FirstName)>100||len(in.LastName)==0||len(in.LastName)>100{return dtos.RegisterResponse{},ErrInvalidRegistration}
 	if len(in.Password)<12||len(in.Password)>128{return dtos.RegisterResponse{},ErrInvalidRegistration}
 	hash,err:=bcrypt.GenerateFromPassword([]byte(in.Password),bcrypt.DefaultCost);if err!=nil{return dtos.RegisterResponse{},err}
-	user,err:=s.repo.CreateUser(ctx,repositories.CreateUserParams{Email:in.Email,Phone:in.Phone,FirstName:in.FirstName,LastName:in.LastName,PasswordHash:string(hash)});if err!=nil{return dtos.RegisterResponse{},err}
+	user,err:=s.repo.CreateUser(ctx,repositories.CreateUserParams{Email:in.Email,Phone:in.Phone,FirstName:in.FirstName,LastName:in.LastName,PasswordHash:string(hash)});if err!=nil{return dtos.RegisterResponse{},mapRegistrationError(err)}
 	if err:=s.sendPhoneVerification(ctx,user);err!=nil{return dtos.RegisterResponse{},err}
 	return dtos.RegisterResponse{PhoneVerificationRequired:true,ResendAvailableInSeconds:int64(s.otpPolicy.ResendCooldown.Seconds())},nil
 }
@@ -57,7 +47,7 @@ func (s *Service) Refresh(ctx context.Context,token,ua,ip string)(dtos.AuthRespo
 func (s *Service) Logout(ctx context.Context,token string)error{h:=sha256.Sum256([]byte(token));return s.repo.RevokeSession(ctx,h[:])}
 func (s *Service) Me(ctx context.Context,id string)(models.User,error){userID,err:=uuid.Parse(id);if err!=nil{return models.User{},ErrInvalidToken};return s.repo.FindByID(ctx,userID)}
 
-func (s *Service) sendPhoneVerification(ctx context.Context,user models.User)error{code,err:=generateOTP();if err!=nil{return err};params:=repositories.IssueOTPParams{UserID:user.ID,Phone:user.Phone,Purpose:models.OTPPurposePhoneVerification,CodeHash:s.hashOTP(code),ExpiresAt:time.Now().Add(s.otpPolicy.TTL),MaxAttempts:s.otpPolicy.MaxAttempts,Cooldown:s.otpPolicy.ResendCooldown,ResendWindow:s.otpPolicy.ResendWindow,MaxResends:s.otpPolicy.MaxResends};if err=s.repo.IssueOTP(ctx,params);err!=nil{return err};if s.sender==nil{_ = s.repo.RevokeActiveOTP(ctx,user.ID,models.OTPPurposePhoneVerification);return errors.New("sms sender is not configured")};if err=s.sender.Send(ctx,SMSMessage{To:user.Phone,Body:fmt.Sprintf("Your Tuma254 verification code is %s. It expires in %d minutes.",code,int(s.otpPolicy.TTL.Minutes()))});err!=nil{_ = s.repo.RevokeActiveOTP(ctx,user.ID,models.OTPPurposePhoneVerification);return err};return nil}
+func (s *Service) sendPhoneVerification(ctx context.Context,user models.User)error{code,err:=generateOTP();if err!=nil{return err};params:=repositories.IssueOTPParams{UserID:user.ID,Phone:user.Phone,Purpose:models.OTPPurposePhoneVerification,CodeHash:s.hashOTP(code),ExpiresAt:time.Now().Add(s.otpPolicy.TTL),MaxAttempts:s.otpPolicy.MaxAttempts,Cooldown:s.otpPolicy.ResendCooldown,ResendWindow:s.otpPolicy.ResendWindow,MaxResends:s.otpPolicy.MaxResends};if err=s.repo.IssueOTP(ctx,params);err!=nil{return err};if s.sender==nil{_ = s.repo.RevokeActiveOTP(ctx,user.ID,models.OTPPurposePhoneVerification);return errors.New("sms sender is not configured")};if err=s.sender.Send(ctx,SMSMessage{To:user.Phone,Body:fmt.Sprintf("Your Tuma254 verification code is %s. It expires in %d minutes.",code,int(s.otpPolicy.TTL.Minutes()))});err!=nil{_ = s.repo.RevokeActiveOTP(ctx,user.ID,models.OTPPurposePhoneVerification);return ErrSMSDelivery};return nil}
 
 func (s *Service) hashOTP(code string)[]byte{h:=hmac.New(sha256.New,s.otpSecret);_,_=h.Write([]byte(code));return h.Sum(nil)}
 func generateOTP()(string,error){n,err:=rand.Int(rand.Reader,big.NewInt(1000000));if err!=nil{return "",err};return fmt.Sprintf("%06d",n.Int64()),nil}
@@ -72,3 +62,19 @@ func (s *Service) createAccessToken(user models.User,now time.Time)(string,error
 func generateRefreshToken()(string,[]byte,error){raw:=make([]byte,48);if _,err:=rand.Read(raw);err!=nil{return "",nil,err};token:=base64.RawURLEncoding.EncodeToString(raw);hash:=sha256.Sum256([]byte(token));return token,hash[:],nil}
 
 func (s *Service) ParseAccess(raw string)(string,[]string,error){p,err:=jwt.Parse(raw,func(t *jwt.Token)(any,error){if t.Method.Alg()!=jwt.SigningMethodHS256.Alg(){return nil,ErrInvalidToken};return s.secret,nil},jwt.WithIssuer("tuma254"));if err!=nil||!p.Valid{return "",nil,ErrInvalidToken};c,ok:=p.Claims.(jwt.MapClaims);if !ok{return "",nil,ErrInvalidToken};id,_:=c["sub"].(string);if _,err:=uuid.Parse(id);err!=nil{return "",nil,ErrInvalidToken};roles:=[]string{};if xs,ok:=c["roles"].([]any);ok{for _,x:=range xs{if v,ok:=x.(string);ok{roles=append(roles,v)}}};return id,roles,nil}
+
+
+func mapRegistrationError(err error) error {
+	if err == nil { return nil }
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "users_email"):
+		return ErrEmailAlreadyRegistered
+	case strings.Contains(message, "users_phone"):
+		return ErrPhoneAlreadyRegistered
+	case strings.Contains(message, "duplicate key"):
+		return ErrInvalidRegistration
+	default:
+		return err
+	}
+}
