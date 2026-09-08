@@ -16,8 +16,8 @@ import (
 	identityrepo "github.com/alumasinde/tuma254-api/internal/identity/repositories"
 	"github.com/alumasinde/tuma254-api/internal/platform/config"
 	"github.com/alumasinde/tuma254-api/internal/platform/database/postgres"
-	"github.com/alumasinde/tuma254-api/internal/platform/logging"
 	"github.com/alumasinde/tuma254-api/internal/platform/httpx"
+	"github.com/alumasinde/tuma254-api/internal/platform/logging"
 	"github.com/alumasinde/tuma254-api/internal/riders"
 	"github.com/alumasinde/tuma254-api/internal/users"
 )
@@ -93,9 +93,14 @@ func main() {
 	select {
 	case <-stop:
 	case err := <-errCh:
-		if !errors.Is(err, http.ErrServerClosed) { log.Error("server failed", "error", err); os.Exit(1) }
+		if !errors.Is(err, http.ErrServerClosed) {
+			log.Error("server failed", "error", err)
+			os.Exit(1)
+		}
 	}
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer shutdownCancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil { log.Error("shutdown failed", "error", err) }
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("shutdown failed", "error", err)
+	}
 }

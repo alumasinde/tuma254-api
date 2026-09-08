@@ -10,7 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Authenticator interface{ RequireAuth(http.Handler) http.Handler }
+type Authenticator interface {
+	RequireAuth(http.Handler) http.Handler
+}
 
 func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, auth Authenticator, users identityrepo.UsersRepository, roles services.RoleAssigner) {
 	svc := services.New(repositories.New(db), users, roles)

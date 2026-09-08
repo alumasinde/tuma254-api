@@ -16,11 +16,17 @@ func main() {
 		log.Fatal("usage: migrate up")
 	}
 	cfg, err := config.Load()
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	db, err := postgres.Open(ctx, cfg.DatabaseURL)
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer db.Close()
-	if err := migrations.New(db, "./migrations").Up(ctx); err != nil { log.Fatal(err) }
+	if err := migrations.New(db, "./migrations").Up(ctx); err != nil {
+		log.Fatal(err)
+	}
 }

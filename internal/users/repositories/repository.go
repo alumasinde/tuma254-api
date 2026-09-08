@@ -21,8 +21,12 @@ func (r *Repository) FindByUserID(ctx context.Context, userID uuid.UUID) (models
 	var p models.Profile
 	err := r.db.QueryRow(ctx, `SELECT user_id, avatar_url, created_at, updated_at FROM user_profiles WHERE user_id=$1`, userID).
 		Scan(&p.UserID, &p.AvatarURL, &p.CreatedAt, &p.UpdatedAt)
-	if errors.Is(err, pgx.ErrNoRows) { return models.Profile{}, ErrNotFound }
-	if err != nil { return models.Profile{}, err }
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Profile{}, ErrNotFound
+	}
+	if err != nil {
+		return models.Profile{}, err
+	}
 	return p, nil
 }
 

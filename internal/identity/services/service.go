@@ -20,21 +20,21 @@ import (
 )
 
 type OTPPolicy struct {
-	TTL               time.Duration
-	ResendCooldown    time.Duration
-	ResendWindow      time.Duration
-	MaxResends        int
-	MaxAttempts       int
+	TTL            time.Duration
+	ResendCooldown time.Duration
+	ResendWindow   time.Duration
+	MaxResends     int
+	MaxAttempts    int
 }
 
 type Service struct {
-	repo        repositories.Repository
-	sender      SMSSender
-	secret      []byte
-	otpSecret   []byte
-	accessTTL   time.Duration
-	refreshTTL  time.Duration
-	otpPolicy   OTPPolicy
+	repo         repositories.Repository
+	sender       SMSSender
+	secret       []byte
+	otpSecret    []byte
+	accessTTL    time.Duration
+	refreshTTL   time.Duration
+	otpPolicy    OTPPolicy
 	loginLimiter LoginLimiter
 }
 

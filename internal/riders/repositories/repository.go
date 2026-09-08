@@ -40,12 +40,16 @@ func (r *Repository) CreateVehicle(ctx context.Context, v models.Vehicle) (model
 
 func (r *Repository) ListVehicles(ctx context.Context, riderID uuid.UUID) ([]models.Vehicle, error) {
 	rows, err := r.db.Query(ctx, `SELECT id,rider_id,vehicle_type,registration_number,COALESCE(make,''),COALESCE(model,''),COALESCE(color,''),active,created_at,updated_at FROM rider_vehicles WHERE rider_id=$1 ORDER BY active DESC,created_at DESC`, riderID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 	vehicles := make([]models.Vehicle, 0)
 	for rows.Next() {
 		v, err := scanVehicle(rows)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		vehicles = append(vehicles, v)
 	}
 	return vehicles, rows.Err()
@@ -53,17 +57,43 @@ func (r *Repository) ListVehicles(ctx context.Context, riderID uuid.UUID) ([]mod
 
 func (r *Repository) SetActiveVehicle(ctx context.Context, riderID, vehicleID uuid.UUID) (models.Vehicle, error) {
 	tx, err := r.db.Begin(ctx)
-	if err != nil { return models.Vehicle{}, err }
+	if err != nil {
+		return models.Vehicle{}, err
+	}
 	defer tx.Rollback(ctx)
 	var exists bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM rider_vehicles WHERE id=$1 AND rider_id=$2)`, vehicleID, riderID).Scan(&exists); err != nil { return models.Vehicle{}, err }
-	if !exists { return models.Vehicle{}, ErrNotFound }
-	if _, err := tx.Exec(ctx, `UPDATE rider_vehicles SET active=false,updated_at=now() WHERE rider_id=$1 AND active`, riderID); err != nil { return models.Vehicle{}, err }
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM rider_vehicles WHERE id=$1 AND rider_id=$2)`, vehicleID, riderID).Scan(&exists); err != nil {
+		return models.Vehicle{}, err
+	}
+	if !exists {
+		return models.Vehicle{}, ErrNotFound
+	}
+	if _, err := tx.Exec(ctx, `UPDATE rider_vehicles SET active=false,updated_at=now() WHERE rider_id=$1 AND active`, riderID); err != nil {
+		return models.Vehicle{}, err
+	}
 	v, err := scanVehicle(tx.QueryRow(ctx, `UPDATE rider_vehicles SET active=true,updated_at=now() WHERE id=$1 AND rider_id=$2 RETURNING id,rider_id,vehicle_type,registration_number,COALESCE(make,''),COALESCE(model,''),COALESCE(color,''),active,created_at,updated_at`, vehicleID, riderID))
-	if err != nil { return models.Vehicle{}, err }
-	if err := tx.Commit(ctx); err != nil { return models.Vehicle{}, err }
+	if err != nil {
+		return models.Vehicle{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return models.Vehicle{}, err
+	}
 	return v, nil
 }
 
-func scanProfile(row pgx.Row) (models.Profile, error) { var p models.Profile; err := row.Scan(&p.ID,&p.UserID,&p.VerificationStatus,&p.Availability,&p.RejectionReason,&p.CreatedAt,&p.UpdatedAt); if errors.Is(err,pgx.ErrNoRows){return models.Profile{},ErrNotFound}; return p,err }
-func scanVehicle(row pgx.Row) (models.Vehicle, error) { var v models.Vehicle; err := row.Scan(&v.ID,&v.RiderID,&v.Type,&v.RegistrationNumber,&v.Make,&v.Model,&v.Color,&v.Active,&v.CreatedAt,&v.UpdatedAt); if errors.Is(err,pgx.ErrNoRows){return models.Vehicle{},ErrNotFound}; return v,err }
+func scanProfile(row pgx.Row) (models.Profile, error) {
+	var p models.Profile
+	err := row.Scan(&p.ID, &p.UserID, &p.VerificationStatus, &p.Availability, &p.RejectionReason, &p.CreatedAt, &p.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Profile{}, ErrNotFound
+	}
+	return p, err
+}
+func scanVehicle(row pgx.Row) (models.Vehicle, error) {
+	var v models.Vehicle
+	err := row.Scan(&v.ID, &v.RiderID, &v.Type, &v.RegistrationNumber, &v.Make, &v.Model, &v.Color, &v.Active, &v.CreatedAt, &v.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Vehicle{}, ErrNotFound
+	}
+	return v, err
+}

@@ -12,20 +12,20 @@ import (
 )
 
 type Config struct {
-	JWTSecret         string
-	OTPHashSecret     string
-	AccessTTL         time.Duration
-	RefreshTTL        time.Duration
-	OTPTTL            time.Duration
-	OTPResendCooldown time.Duration
-	OTPResendWindow   time.Duration
-	OTPMaxResends     int
-	OTPMaxAttempts    int
+	JWTSecret          string
+	OTPHashSecret      string
+	AccessTTL          time.Duration
+	RefreshTTL         time.Duration
+	OTPTTL             time.Duration
+	OTPResendCooldown  time.Duration
+	OTPResendWindow    time.Duration
+	OTPMaxResends      int
+	OTPMaxAttempts     int
 	LoginAttemptWindow time.Duration
-	LoginMaxAttempts int
-	SMSProvider       string
-	SMSWebhookURL     string
-	SMSWebhookToken   string
+	LoginMaxAttempts   int
+	SMSProvider        string
+	SMSWebhookURL      string
+	SMSWebhookToken    string
 }
 
 func buildSMSSender(cfg Config, log *slog.Logger) (services.SMSSender, error) {

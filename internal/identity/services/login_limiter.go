@@ -13,15 +13,15 @@ type LoginLimiter interface {
 }
 
 type loginAttemptWindow struct {
-	started time.Time
+	started  time.Time
 	failures int
 }
 
 type MemoryLoginLimiter struct {
-	mu sync.Mutex
-	window time.Duration
+	mu          sync.Mutex
+	window      time.Duration
 	maxFailures int
-	attempts map[string]loginAttemptWindow
+	attempts    map[string]loginAttemptWindow
 }
 
 func NewMemoryLoginLimiter(window time.Duration, maxFailures int) *MemoryLoginLimiter {

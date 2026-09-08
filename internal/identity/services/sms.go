@@ -21,10 +21,12 @@ type SMSSender interface {
 	Send(context.Context, SMSMessage) error
 }
 
-type LoggingSMSSender struct { log *slog.Logger }
+type LoggingSMSSender struct{ log *slog.Logger }
 
 func NewLoggingSMSSender(log *slog.Logger) *LoggingSMSSender {
-	if log == nil { log = slog.Default() }
+	if log == nil {
+		log = slog.Default()
+	}
 	return &LoggingSMSSender{log: log}
 }
 
@@ -42,7 +44,9 @@ type WebhookSMSSender struct {
 }
 
 func NewWebhookSMSSender(url, token string) (*WebhookSMSSender, error) {
-	if strings.TrimSpace(url) == "" { return nil, errors.New("SMS_WEBHOOK_URL is required") }
+	if strings.TrimSpace(url) == "" {
+		return nil, errors.New("SMS_WEBHOOK_URL is required")
+	}
 	return &WebhookSMSSender{
 		url: strings.TrimSpace(url), token: strings.TrimSpace(token),
 		http: &http.Client{Timeout: 10 * time.Second},
@@ -51,13 +55,21 @@ func NewWebhookSMSSender(url, token string) (*WebhookSMSSender, error) {
 
 func (s *WebhookSMSSender) Send(ctx context.Context, msg SMSMessage) error {
 	body, err := json.Marshal(msg)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url, bytes.NewReader(body))
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	req.Header.Set("Content-Type", "application/json")
-	if s.token != "" { req.Header.Set("Authorization", "Bearer "+s.token) }
+	if s.token != "" {
+		req.Header.Set("Authorization", "Bearer "+s.token)
+	}
 	resp, err := s.http.Do(req)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("sms provider returned status %d", resp.StatusCode)
@@ -66,6 +78,8 @@ func (s *WebhookSMSSender) Send(ctx context.Context, msg SMSMessage) error {
 }
 
 func maskPhone(v string) string {
-	if len(v) <= 4 { return "****" }
+	if len(v) <= 4 {
+		return "****"
+	}
 	return "****" + v[len(v)-4:]
 }

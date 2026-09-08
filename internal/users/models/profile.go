@@ -7,7 +7,7 @@ import (
 )
 
 type Profile struct {
-	UserID uuid.UUID
+	UserID    uuid.UUID
 	AvatarURL string
 	CreatedAt time.Time
 	UpdatedAt time.Time

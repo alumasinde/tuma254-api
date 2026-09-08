@@ -39,11 +39,11 @@ type AuthResponse struct {
 }
 
 type MeResponse struct {
-	ID                string   `json:"id"`
-	Email             string   `json:"email"`
-	Phone             string   `json:"phone"`
-	PhoneVerified     bool     `json:"phoneVerified"`
-	FirstName         string   `json:"firstName"`
-	LastName          string   `json:"lastName"`
-	Roles             []string `json:"roles"`
+	ID            string   `json:"id"`
+	Email         string   `json:"email"`
+	Phone         string   `json:"phone"`
+	PhoneVerified bool     `json:"phoneVerified"`
+	FirstName     string   `json:"firstName"`
+	LastName      string   `json:"lastName"`
+	Roles         []string `json:"roles"`
 }

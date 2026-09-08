@@ -11,7 +11,7 @@ import (
 
 func TestIdentityErrorResponse(t *testing.T) {
 	tests := []struct {
-		err error
+		err    error
 		status int
 	}{
 		{services.ErrEmailAlreadyRegistered, http.StatusConflict},

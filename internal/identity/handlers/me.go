@@ -22,6 +22,6 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, dtos.MeResponse{
 		ID: u.ID.String(), Email: u.Email, Phone: u.Phone,
 		PhoneVerified: u.PhoneVerifiedAt != nil,
-		FirstName: u.FirstName, LastName: u.LastName, Roles: u.Roles,
+		FirstName:     u.FirstName, LastName: u.LastName, Roles: u.Roles,
 	})
 }
