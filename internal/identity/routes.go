@@ -43,6 +43,7 @@ func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.
 	if err != nil { return err }
 	svc := services.New(repositories.New(db), sender, cfg.JWTSecret, cfg.OTPHashSecret, cfg.AccessTTL, cfg.RefreshTTL, policy)
 	h := handlers.New(svc)
+	registerDownstreamRoutes(mux, db, h)
 
 	mux.HandleFunc("POST /api/v1/auth/register", h.Register)
 	mux.HandleFunc("POST /api/v1/auth/phone/verify", h.VerifyPhone)
@@ -52,4 +53,8 @@ func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.
 	mux.HandleFunc("POST /api/v1/auth/logout", h.Logout)
 	mux.Handle("GET /api/v1/me", h.RequireAuth(http.HandlerFunc(h.Me)))
 	return nil
+}
+
+func registerDownstreamRoutes(mux *http.ServeMux, db *pgxpool.Pool, h *handlers.Handler) {
+	// Downstream module wiring is registered in cmd/api to keep Identity independent.
 }
