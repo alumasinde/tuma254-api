@@ -51,8 +51,6 @@ func main() {
 
 	// Users and Riders share the Identity authentication middleware and user repository.
 	identityPostgres := identityrepo.New(db)
-	identityService := identityPostgres
-	_ = identityService
 	// Route registration is performed after Identity so protected modules use the same auth boundary.
 	// Rebuild only the handler boundary here; Identity owns token parsing and middleware.
 	identitySvc, err := identity.BuildService(db, identity.Config{
