@@ -12,7 +12,7 @@ import (
 
 type Authenticator interface{ RequireAuth(http.Handler) http.Handler }
 
-func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, auth Authenticator, users identityrepo.UsersRepository, roles identityrepo.RoleAssigner) {
+func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, auth Authenticator, users identityrepo.UsersRepository, roles services.RoleAssigner) {
 	svc := services.New(repositories.New(db), users, roles)
 	h := handlers.New(svc)
 	protect := func(pattern string, next http.HandlerFunc) { mux.Handle(pattern, auth.RequireAuth(next)) }
