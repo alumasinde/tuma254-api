@@ -12,7 +12,7 @@ import (
 )
 
 func (r *Postgres) IssueOTP(ctx context.Context,p IssueOTPParams)error{
-	tx,err:=r.db.Begin(ctx);if err!=nil{return err};defer tx.Rollback()
+	tx,err:=r.db.Begin(ctx);if err!=nil{return err};defer tx.Rollback(ctx)
 	var exists bool
 	if err=tx.QueryRow(ctx,"SELECT TRUE FROM users WHERE id=$1 FOR UPDATE",p.UserID).Scan(&exists);err!=nil{return err}
 	var createdAt time.Time
@@ -30,7 +30,7 @@ func (r *Postgres) IssueOTP(ctx context.Context,p IssueOTPParams)error{
 func (r *Postgres) RevokeActiveOTP(ctx context.Context,userID uuid.UUID,purpose string)error{_,err:=r.db.Exec(ctx,"UPDATE otp_challenges SET revoked_at=now() WHERE user_id=$1 AND purpose=$2 AND verified_at IS NULL AND revoked_at IS NULL",userID,purpose);return err}
 
 func (r *Postgres) VerifyOTP(ctx context.Context,phone,purpose string,codeHash []byte)(models.OTPVerifyResult,error){
-	tx,err:=r.db.Begin(ctx);if err!=nil{return models.OTPVerifyResult{},err};defer tx.Rollback()
+	tx,err:=r.db.Begin(ctx);if err!=nil{return models.OTPVerifyResult{},err};defer tx.Rollback(ctx)
 	var id,userID uuid.UUID;var stored []byte;var expires time.Time;var attempts,max int
 	err=tx.QueryRow(ctx,"SELECT id,user_id,code_hash,expires_at,attempt_count,max_attempts FROM otp_challenges WHERE phone=$1 AND purpose=$2 AND verified_at IS NULL AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 1 FOR UPDATE",phone,purpose).Scan(&id,&userID,&stored,&expires,&attempts,&max)
 	if errors.Is(err,pgx.ErrNoRows){return models.OTPVerifyResult{},nil};if err!=nil{return models.OTPVerifyResult{},err}
