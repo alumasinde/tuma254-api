@@ -21,6 +21,8 @@ type Config struct {
 	OTPResendWindow   time.Duration
 	OTPMaxResends     int
 	OTPMaxAttempts    int
+	LoginAttemptWindow time.Duration
+	LoginMaxAttempts int
 	SMSProvider       string
 	SMSWebhookURL     string
 	SMSWebhookToken   string
@@ -34,6 +36,10 @@ func buildSMSSender(cfg Config, log *slog.Logger) (services.SMSSender, error) {
 }
 
 func BuildService(db *pgxpool.Pool, cfg Config, log *slog.Logger) (*services.Service, error) {
+	return BuildServiceWithRepository(repositories.New(db), cfg, log)
+}
+
+func BuildServiceWithRepository(repo repositories.Repository, cfg Config, log *slog.Logger) (*services.Service, error) {
 	policy := services.OTPPolicy{
 		TTL:            cfg.OTPTTL,
 		ResendCooldown: cfg.OTPResendCooldown,
@@ -45,15 +51,17 @@ func BuildService(db *pgxpool.Pool, cfg Config, log *slog.Logger) (*services.Ser
 	if err != nil {
 		return nil, err
 	}
-	return services.New(
-		repositories.New(db),
+	svc := services.New(
+		repo,
 		sender,
 		cfg.JWTSecret,
 		cfg.OTPHashSecret,
 		cfg.AccessTTL,
 		cfg.RefreshTTL,
 		policy,
-	), nil
+	)
+	svc.SetLoginLimiter(services.NewMemoryLoginLimiter(cfg.LoginAttemptWindow, cfg.LoginMaxAttempts))
+	return svc, nil
 }
 
 func RegisterRoutes(mux *http.ServeMux, db *pgxpool.Pool, cfg Config, log *slog.Logger) error {
