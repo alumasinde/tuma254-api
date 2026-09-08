@@ -1,3 +1,6 @@
 
 # Bruno local runtime environment: may contain OTPs and session tokens
 environments/local.bru
+
+# Bruno local runtime environment
+api-tests/environments/local.bru
