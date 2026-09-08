@@ -30,14 +30,32 @@ func (r *Postgres) FindByEmail(ctx context.Context, email string) (models.User,s
 	return user,passwordHash,err
 }
 
-func (r *Postgres) FindByPhone(ctx context.Context, phone string)(models.User,error){return r.findUser(ctx,"phone=$1",phone)}
-func (r *Postgres) FindByID(ctx context.Context,id uuid.UUID)(models.User,error){return r.findUser(ctx,"id=$1",id)}
+func (r *Postgres) FindByPhone(ctx context.Context, phone string) (models.User, error) {
+	return r.findUserByPhone(ctx, phone)
+}
 
-func (r *Postgres) findUser(ctx context.Context, predicate string, value any)(models.User,error){
+func (r *Postgres) FindByID(ctx context.Context, id uuid.UUID) (models.User, error) {
+	return r.findUserByID(ctx, id)
+}
+
+func (r *Postgres) findUserByPhone(ctx context.Context, phone string) (models.User, error) {
+	return r.scanUser(ctx, "SELECT id,email,phone,first_name,last_name,is_active,phone_verified_at,created_at FROM users WHERE phone=$1", phone)
+}
+
+func (r *Postgres) findUserByID(ctx context.Context, id uuid.UUID) (models.User, error) {
+	return r.scanUser(ctx, "SELECT id,email,phone,first_name,last_name,is_active,phone_verified_at,created_at FROM users WHERE id=$1", id)
+}
+
+func (r *Postgres) scanUser(ctx context.Context, query string, value any) (models.User, error) {
 	var user models.User
-	query:="SELECT id,email,phone,first_name,last_name,is_active,phone_verified_at,created_at FROM users WHERE "+predicate
-	err:=r.db.QueryRow(ctx,query,value).Scan(&user.ID,&user.Email,&user.Phone,&user.FirstName,&user.LastName,&user.Active,&user.PhoneVerifiedAt,&user.CreatedAt)
-	if err!=nil{return models.User{},err}
-	roles,err:=r.FindRolesByUserID(ctx,user.ID); user.Roles=roles
-	return user,err
+	err := r.db.QueryRow(ctx, query, value).Scan(&user.ID, &user.Email, &user.Phone, &user.FirstName, &user.LastName, &user.Active, &user.PhoneVerifiedAt, &user.CreatedAt)
+	if err != nil {
+		return models.User{}, err
+	}
+	roles, err := r.FindRolesByUserID(ctx, user.ID)
+	if err != nil {
+		return models.User{}, err
+	}
+	user.Roles = roles
+	return user, nil
 }
