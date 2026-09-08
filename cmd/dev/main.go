@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -26,7 +28,7 @@ func run() error {
 		return err
 	}
 
-	cfg, err := config.Load()
+	_, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
 	}
@@ -45,14 +47,24 @@ func run() error {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
-	sinkToken := strings.TrimSpace(cfg.SMSWebhookToken)
+	sinkToken := strings.TrimSpace(os.Getenv("SMS_WEBHOOK_TOKEN"))
 	if sinkToken == "" {
-		return errors.New("SMS_WEBHOOK_TOKEN is required for the dev engine; set it once in .env and reuse it in api-tests/environments/local.bru")
-	}
-	if strings.TrimSpace(cfg.SMSProvider) != "webhook" {
-		return errors.New("SMS_PROVIDER must be webhook for the dev engine")
+		var tokenBytes [32]byte
+		if _, err := rand.Read(tokenBytes[:]); err != nil {
+			return fmt.Errorf("generate local SMS sink token: %w", err)
+		}
+		sinkToken = hex.EncodeToString(tokenBytes[:])
 	}
 
+	if err := writeBrunoEnvironment(sinkToken); err != nil {
+		return err
+	}
+
+	apiEnv := append(os.Environ(),
+		"SMS_PROVIDER=webhook",
+		"SMS_WEBHOOK_URL=http://127.0.0.1:8090/messages",
+		"SMS_WEBHOOK_TOKEN="+sinkToken,
+	)
 	env := append(os.Environ(), "SMS_SINK_TOKEN="+sinkToken)
 	sink := exec.Command("go", "run", "./cmd/sms-sink")
 	sink.Env = env
@@ -63,7 +75,7 @@ func run() error {
 	}
 
 	api := exec.Command("go", "run", "./cmd/api")
-	api.Env = os.Environ()
+	api.Env = apiEnv
 	api.Stdout = os.Stdout
 	api.Stderr = os.Stderr
 	if err := api.Start(); err != nil {
@@ -76,6 +88,7 @@ func run() error {
 	fmt.Println("API:        http://localhost:8080")
 	fmt.Println("Health:     http://localhost:8080/health")
 	fmt.Println("SMS sink:   http://127.0.0.1:8090")
+	fmt.Println("Bruno env:  api-tests/environments/local.bru (generated automatically)")
 	fmt.Println("Database:   managed by Docker Compose")
 	fmt.Println("Press Ctrl+C to stop the API and SMS sink.")
 	fmt.Println()
@@ -137,4 +150,27 @@ func runCommand(ctx context.Context, name string, args ...string) error {
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
 	return cmd.Run()
+}
+
+
+func writeBrunoEnvironment(sinkToken string) error {
+	timestamp := time.Now().Format("20060102150405")
+	content := fmt.Sprintf(`vars {
+  baseUrl: http://localhost:8080
+  smsSinkUrl: http://127.0.0.1:8090
+  smsSinkToken: %s
+  testEmail: tuma254-smoke-%s@example.test
+  testPhone: +254700000000
+  testFirstName: Test
+  testLastName: User
+  testPassword: ChangeThisLocalTestPassword123
+}
+`, sinkToken, timestamp)
+	if err := os.MkdirAll("api-tests/environments", 0o755); err != nil {
+		return fmt.Errorf("create Bruno environment directory: %w", err)
+	}
+	if err := os.WriteFile("api-tests/environments/local.bru", []byte(content), 0o600); err != nil {
+		return fmt.Errorf("write Bruno local environment: %w", err)
+	}
+	return nil
 }
